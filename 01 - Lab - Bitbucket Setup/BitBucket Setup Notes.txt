@@ -1,0 +1,7 @@
+Name: Sam Huffer
+Student ID: 101633177
+Unit Code: COS30002
+Task Number: Lab 1 Task 1
+Date: 7 March 2019
+
+Added all the files and folders to be downloaded to the repo folder on my laptop, committed, and pushed to the repo.
