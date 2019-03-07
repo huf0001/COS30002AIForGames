@@ -12,6 +12,8 @@ running = True
 maxLimit = 100
 gameTime = 0
 
+print("Hello world!")
+
 while running and alive:
     gameTime += 1
 
