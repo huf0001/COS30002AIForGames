@@ -21,7 +21,19 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="AI1.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="AI2.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="TicTacToeGame.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="TicTacToe.py" />
+    <Compile Include="__init__.py">
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
