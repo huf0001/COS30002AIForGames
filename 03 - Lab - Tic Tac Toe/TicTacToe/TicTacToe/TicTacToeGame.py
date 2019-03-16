@@ -16,12 +16,20 @@ class TicTacToeGame:
         self.winner = None
 
     def GameLoop(self):        
+        result = None
+        
         while not self.gameOver:
             self.input = self.GatherInput(self.boardSpaces, self.acceptableBoardSpaces)
 
             self.Update(self.currentAI, self.input, self.boardSpaces, self.acceptableBoardSpaces)
 
             self.Render(self.currentAI, self.boardSpaces)
+        
+        result = input("Play again? (Y/N): ")
+        if result in ["Y", "y", "Yes", "yes"]:
+            return True
+        else:
+            return False    
 
     def GatherInput(self, boardSpaces, acceptableSpaces):
         # increment which AI's turn it is, and let it have its turn

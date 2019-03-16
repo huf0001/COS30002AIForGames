@@ -1,5 +1,9 @@
 import TicTacToeGame as gameModule
 
-game = gameModule.TicTacToeGame()
+while True:
+    game = gameModule.TicTacToeGame()
 
-game.GameLoop()
+    replay = game.GameLoop()
+
+    if replay is not True:
+        break
