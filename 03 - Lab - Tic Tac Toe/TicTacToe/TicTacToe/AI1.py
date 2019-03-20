@@ -23,11 +23,11 @@ class AI1:
                         if (self.CheckIfSetIsWinnable(acceptableSpaces[i], possibleAtk3s[j], boardSpaces)):
                             atk3Spaces.append(acceptableSpaces[i])  
                                 
-            if len(atk3Spaces) > 0:
-                if len(atk3Spaces) is 1:
-                    result = atk3Spaces[0]
-                else:
-                    result = atk3Spaces[random.randrange(0, len(atk3Spaces) - 1)]
+        if len(atk3Spaces) > 0:
+            if len(atk3Spaces) is 1:
+                result = atk3Spaces[0]
+            else:
+                result = atk3Spaces[random.randrange(0, len(atk3Spaces) - 1)]
 
         return result
 
@@ -37,7 +37,7 @@ class AI1:
                     return False                                                            # the space is taken by the opponent and is not usable
             
         return True                                                                         # if all spaces besides emptySpace are Xs, method returns True, saying this is a winnable set
-
+     
     def CheckNonWinningMove(self, acceptableSpaces):
         #pick a random space from acceptableSpaces
         if len(acceptableSpaces) is 9:
