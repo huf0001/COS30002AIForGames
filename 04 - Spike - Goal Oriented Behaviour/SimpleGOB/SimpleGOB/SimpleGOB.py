@@ -36,10 +36,10 @@ goals = {
 
 # Global (read-only) actions and effects
 actions = {
-    'get raw food': { 'Eat': -3 },
-    'get snack': { 'Eat': -2 },
-    'sleep in bed': { 'Sleep': -4 },
-    'sleep on sofa': { 'Sleep': -2 }
+    'get raw food': { 'Eat': -3, 'Sleep': +2 },
+    'get snack': { 'Eat': -2, 'Sleep': +1 },
+    'sleep in bed': { 'Sleep': -4, 'Eat': +4 },
+    'sleep on sofa': { 'Sleep': -2,  'Eat': + 2}
 }
 
 
@@ -64,12 +64,12 @@ def action_utility(action, goal):
     '''
     ### Simple version - the utility is the change to the specified goal
 
-    #if goal in actions[action]:
-    #    # Is the goal affected by the specified action?
-    #    return -actions[action][goal]
-    #else:
-    #    # It isn't, so utility is zero.
-    #    return 0
+    # if goal in actions[action]:
+    #     # Is the goal affected by the specified action?
+    #     return -actions[action][goal]
+    # else:
+    #     # It isn't, so utility is zero.
+    #     return 0
 
     if goal in actions[action]:
         # Is the goal affected by the specified action?
@@ -86,10 +86,13 @@ def action_utility(action, goal):
 
     ### Extension
     ###
-    ###  - return a higher utility for actions that don't change our goal past zero
-    ###  and/or
-    ###  - take any other (positive or negative) effects of the action into account
-    ###    (you will need to add some other effects to 'actions')
+    ###     Done:
+    ###         - return a higher utility for actions that don't change our goal past zero
+    ###         and/or
+    ###         - Add some other effects to 'actions'
+    ###     
+    ###     To Do:
+    ###         - take any other (positive or negative) effects of the action into account
 
 
 def choose_action():
