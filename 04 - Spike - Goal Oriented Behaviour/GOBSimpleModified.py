@@ -64,9 +64,22 @@ def action_utility(action, goal):
     '''
     ### Simple version - the utility is the change to the specified goal
 
+    #if goal in actions[action]:
+    #    # Is the goal affected by the specified action?
+    #    return -actions[action][goal]
+    #else:
+    #    # It isn't, so utility is zero.
+    #    return 0
+
     if goal in actions[action]:
         # Is the goal affected by the specified action?
-        return -actions[action][goal]
+        result = -actions[action][goal]     # result actions[a][g] is -ve; -actions[][] is +ve
+        
+        if goals[goal] - result < 0:
+            result += goals[goal] - result  # result is decremented by the difference between it and goals[goal]
+            
+        return result
+        
     else:
         # It isn't, so utility is zero.
         return 0
@@ -86,13 +99,13 @@ def choose_action():
     assert len(actions) > 0, 'Need at least one action'
 
     # Find the most insistent goal - the 'Pythonic' way...
-    best_goal, best_goal_value = max(goals.items(), key=lambda item: item[1])
+    #best_goal, best_goal_value = max(goals.items(), key=lambda item: item[1])
 
     # ...or the non-Pythonic way. (This code is identical to the line above.)
-    #best_goal = None
-    #for key, value in goals.items():
-    #    if best_goal is None or value > goals[best_goal]:
-    #        best_goal = key
+    best_goal = None
+    for key, value in goals.items():
+        if best_goal is None or value > goals[best_goal]:
+            best_goal = key
 
     if VERBOSE: print('BEST_GOAL:', best_goal, goals[best_goal])
 
@@ -100,6 +113,7 @@ def choose_action():
     # (Not the Pythonic way... but you can change it if you like / want to learn)
     best_action = None
     best_utility = None
+
     for key, value in actions.items():
         # Note, at this point:
         #  - "key" is the action as a string,
@@ -112,17 +126,19 @@ def choose_action():
             if best_action is None:
                 pass
                 ### 1. store the "key" as the current best_action
-                ### ...
+                best_action = key
                 ### 2. use the "action_utility" function to find the best_utility value of this best_action
-                ### ...
+                best_utility = action_utility(key, best_goal)
 
             # Is this new action better than the current action?
             else:
                 pass
                 ### 1. use the "action_utility" function to find the utility value of this action
-                ### ...
+                utility = action_utility(key, best_goal)
                 ### 2. If it's the best action to take (utility > best_utility), keep it! (utility and action)
-                ### ...
+                if utility > best_utility:
+                    best_action = key
+                    best_utility = utility
 
     # Return the "best action"
     return best_action
@@ -144,27 +160,35 @@ def run_until_all_goals_zero():
     print('>> Start <<')
     print(HR)
     running = True
+
     while running:
         print('GOALS:', goals)
+
         # What is the best action
         action = choose_action()
         print('BEST ACTION:', action)
+
         # Apply the best action
         apply_action(action)
         print('NEW GOALS:', goals)
+
         # Stop?
         if all(value == 0 for goal, value in goals.items()):
             running = False
+
         print(HR)
+
     # finished
     print('>> Done! <<')
 
 
 if __name__ == '__main__':
-    # print(actions)
-    # print(actions.items())
-    # for k, v in actions.items():
-    #     print(k,v)
-    # print_actions()
+     print(actions)
+     print(actions.items())
 
-    run_until_all_goals_zero()
+     for k, v in actions.items():
+         print(k,v)
+
+     print_actions()
+
+     run_until_all_goals_zero()
