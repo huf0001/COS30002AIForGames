@@ -37,8 +37,8 @@ goals = {
 # Global (read-only) actions and effects
 actions = {
     'get raw food': { 'Eat': -3, 'Sleep': +2 },
-    'get snack': { 'Eat': -2, 'Sleep': +1 },
-    'sleep in bed': { 'Sleep': -4, 'Eat': +2 },
+    'get snack': { 'Eat': -1, 'Sleep': 0 },
+    'sleep in bed': { 'Sleep': -4, 'Eat': +3 },
     'sleep on sofa': { 'Sleep': -2,  'Eat': + 1}
 }
 
@@ -63,42 +63,12 @@ def action_utility(action, goal):
     beneficial.
     '''
     ### Simple version - the utility is the change to the specified goal
-
-    # if goal in actions[action]:
-    #     # Is the goal affected by the specified action?
-    #     return -actions[action][goal]
-    # else:
-    #     # It isn't, so utility is zero.
-    #     return 0
-
-    result = []
-    effects = {}
-
     if goal in actions[action]:
         # Is the goal affected by the specified action?
-        #goalResult = -actions[action][goal]     # result actions[a][g] is -ve; -actions[][] is +ve
-
-        #for g in actions[action]:
-        #    if g is not goal:
-        #        sideEffects.update(g)
-
-        #if goals[goal] - goalResult < 0:
-        #    goalResult += goals[goal] - goalResult  # result is decremented by the difference between it and goals[goal]
-
-        for e in actions[action]:
-            effects[e] = actions[action][e]
-
-        for e in effects:
-            if goals[e] - effects[e] < 0:
-                effects[e] += goals[e] - effects[e]
-
-            result.append(effects[e])
-            
-        return result
-        
+        return -actions[action][goal]
     else:
         # It isn't, so utility is zero.
-        return [0]
+        return 0
 
     ### Extension
     ###
@@ -106,9 +76,17 @@ def action_utility(action, goal):
     ###         - return a higher utility for actions that don't change our goal past zero
     ###         and/or
     ###         - Add some other effects to 'actions'
-    ###     
-    ###     To Do:
-    ###         - take any other (positive or negative) effects of the action into account
+    ###         - take any other (positive or negative) effects of the action into account   
+
+
+def action_side_effects(action, goal):
+    result = 0      # default is no side effects
+    
+    for g in actions[action]:   # for each goal affected by the action
+        if g is not goal:       # if it is not the current goal
+            result += -actions[action][g]       # increment result by its effect
+
+    return result
 
 
 def choose_action():
@@ -133,6 +111,7 @@ def choose_action():
     # (Not the Pythonic way... but you can change it if you like / want to learn)
     best_action = None
     best_utility = None
+    best_side_effects = None
 
     for key, value in actions.items():
         # Note, at this point:
@@ -144,26 +123,40 @@ def choose_action():
 
             # Do we currently have a "best action" to try? If not, use this one
             if best_action is None:
-                pass
                 ### 1. store the "key" as the current best_action
                 best_action = key
                 ### 2. use the "action_utility" function to find the best_utility value of this best_action
                 best_utility = action_utility(key, best_goal)
 
+                best_side_effects = action_side_effects(key, best_goal)
+
             # Is this new action better than the current action?
             else:
-                pass
                 ### 1. use the "action_utility" function to find the utility value of this action
                 utility = action_utility(key, best_goal)
-                ### 2. If it's the best action to take (utility > best_utility), keep it! (utility and action)
-                if utility[0] > best_utility[0]:
-                    best_action = key
-                    best_utility = utility
-                elif utility[0] is best_utility[0]:
-                    if utility[1] > best_utility[1]:
+                side_effects = action_side_effects(key, best_goal) # side effects is sum of magnitude of all side effects
+                
+                ### 2. If it's the best action to take (utility > best_utility), keep it! (utility and action)                    
+                
+                ### use this code if both eating and sleeping have -ve side effects of great enough magnitude that neither would allow for comparison based on mitigating side effects because
+                ### the code is too concerned with managing the dominant goal
+                #if utility > 0 and side_effects >= 0 and side_effects > best_side_effects: # if side effects are none / beneficial, and better than best_side_effects
+                #    best_action = key
+                #    best_utility = action_utility(key, best_goal)
+                #    best_side_effects = action_side_effects(key, best_goal)
+                #el
+                if (utility >= goals[best_goal] and best_utility >= goals[best_goal]) or (utility is best_utility): # if both beat goal or are equal
+                    if side_effects > best_side_effects:    
+                        # print("Both beat goal; judging by side effects")
                         best_action = key
-                        best_utility = utility
+                        best_utility = action_utility(key, best_goal)
+                        best_side_effects = action_side_effects(key, best_goal)
 
+                elif utility > best_utility: # if utility beats best_utility
+                    # print("Updating best_utility based on maximising intended effect")
+                    best_action = key
+                    best_utility = action_utility(key, best_goal)
+                    best_side_effects = action_side_effects(key, best_goal)
 
     # Return the "best action"
     return best_action
@@ -204,6 +197,8 @@ def run_until_all_goals_zero():
             running = False
 
         print(HR)
+
+        input()
 
     # finished
     print('>> Done! <<')
