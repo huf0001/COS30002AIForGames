@@ -38,8 +38,8 @@ goals = {
 actions = {
     'get raw food': { 'Eat': -3, 'Sleep': +2 },
     'get snack': { 'Eat': -2, 'Sleep': +1 },
-    'sleep in bed': { 'Sleep': -4, 'Eat': +4 },
-    'sleep on sofa': { 'Sleep': -2,  'Eat': + 2}
+    'sleep in bed': { 'Sleep': -4, 'Eat': +2 },
+    'sleep on sofa': { 'Sleep': -2,  'Eat': + 1}
 }
 
 
@@ -71,18 +71,34 @@ def action_utility(action, goal):
     #     # It isn't, so utility is zero.
     #     return 0
 
+    result = []
+    effects = {}
+
     if goal in actions[action]:
         # Is the goal affected by the specified action?
-        result = -actions[action][goal]     # result actions[a][g] is -ve; -actions[][] is +ve
-        
-        if goals[goal] - result < 0:
-            result += goals[goal] - result  # result is decremented by the difference between it and goals[goal]
+        #goalResult = -actions[action][goal]     # result actions[a][g] is -ve; -actions[][] is +ve
+
+        #for g in actions[action]:
+        #    if g is not goal:
+        #        sideEffects.update(g)
+
+        #if goals[goal] - goalResult < 0:
+        #    goalResult += goals[goal] - goalResult  # result is decremented by the difference between it and goals[goal]
+
+        for e in actions[action]:
+            effects[e] = actions[action][e]
+
+        for e in effects:
+            if goals[e] - effects[e] < 0:
+                effects[e] += goals[e] - effects[e]
+
+            result.append(effects[e])
             
         return result
         
     else:
         # It isn't, so utility is zero.
-        return 0
+        return [0]
 
     ### Extension
     ###
@@ -106,6 +122,7 @@ def choose_action():
 
     # ...or the non-Pythonic way. (This code is identical to the line above.)
     best_goal = None
+
     for key, value in goals.items():
         if best_goal is None or value > goals[best_goal]:
             best_goal = key
@@ -139,9 +156,14 @@ def choose_action():
                 ### 1. use the "action_utility" function to find the utility value of this action
                 utility = action_utility(key, best_goal)
                 ### 2. If it's the best action to take (utility > best_utility), keep it! (utility and action)
-                if utility > best_utility:
+                if utility[0] > best_utility[0]:
                     best_action = key
                     best_utility = utility
+                elif utility[0] is best_utility[0]:
+                    if utility[1] > best_utility[1]:
+                        best_action = key
+                        best_utility = utility
+
 
     # Return the "best action"
     return best_action
@@ -151,8 +173,10 @@ def choose_action():
 
 def print_actions():
     print('ACTIONS:')
+
     # for name, effects in list(actions.items()):
     #     print(" * [%s]: %s" % (name, str(effects)))
+
     for name, effects in actions.items():
         print(" * [%s]: %s" % (name, str(effects)))
 
