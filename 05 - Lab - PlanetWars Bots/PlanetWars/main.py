@@ -345,7 +345,14 @@ class PlanetWarsWindow(window.Window):
 
 if __name__ == '__main__':
     gamestate = open('./maps/map5.txt').read()
-    players = ['Blanko', 'OneMove']
-    window = PlanetWarsWindow(gamestate=gamestate, players=players, max_game_length=500)
+    
+    # Available players:
+    #   Min
+    #   Max
+    #   Rando
+    #   OneMove
+    #   Blanko
+    players = ['Min', 'Max']
+    window = PlanetWarsWindow(gamestate=gamestate, players=players, max_game_length=2000)
     app.run()
     window.game.logger.flush()
