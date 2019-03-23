@@ -352,7 +352,10 @@ if __name__ == '__main__':
     #   Rando
     #   OneMove
     #   Blanko
-    players = ['Min', 'Max']
+    #   NearMin
+    #   NearMax
+    players = ['NearMin', 'NearMin']
+
     window = PlanetWarsWindow(gamestate=gamestate, players=players, max_game_length=2000)
     app.run()
     window.game.logger.flush()

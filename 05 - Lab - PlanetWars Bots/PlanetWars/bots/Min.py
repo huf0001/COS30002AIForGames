@@ -8,7 +8,7 @@ class Min(object):
 
         # check if we should attack
         if gameinfo.my_planets and gameinfo.not_my_planets:
-            #select random target and destination
+            #select random source and unconquered planet with fewest ships
             dest = min(gameinfo.not_my_planets.values(), key = lambda p: p.num_ships)
             src = choice(list(gameinfo.my_planets.values()))
 
