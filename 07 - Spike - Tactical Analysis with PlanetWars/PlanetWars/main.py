@@ -213,7 +213,8 @@ class PlanetWarsWindow(window.Window):
         self.step_label = Label('STEP', x=5, y=self.height - 20, color=clWhite)
         self.fps = 0
         self.set_fps(20)
-        self.paused = True
+#self.set_fps(100)
+        self.paused = False
         self.view_id = 0
         self.label_type = 'num_ships'
 
@@ -342,20 +343,52 @@ class PlanetWarsWindow(window.Window):
         glVertex2f(x2, y2)
         glEnd()
 
+if __name__ == '__main__': 
+    i = 0
+    p1_wins = 0
+    p2_wins = 0
+    draws = 0
+    p1_alive = False
+    p2_alive = False
+    games = 10
+    window = None
 
-if __name__ == '__main__':
-    gamestate = open('./maps/map5.txt').read()
+    # choose from maps 0 to 100
+    # for results, chose 6, 26, and 88
+    gamestate = open('./maps/map6.txt').read()
     
-    # Available players:
-    #   Min
-    #   Max
-    #   Rando
-    #   OneMove
-    #   Blanko
-    #   NearMin
-    #   NearMax
-    players = ['NearMin', 'NearMax']
+    # Available AIs:
+    #   Naive
+    #   SimpleTactical
+    #   ComplexTactical
+    
+    players = ['Naive', 'ComplexTactical']    
+    #players = ['ComplexTactical', 'Naive']
 
-    window = PlanetWarsWindow(gamestate=gamestate, players=players, max_game_length=2000)
-    app.run()
-    window.game.logger.flush()
+    while i < games:
+        window = PlanetWarsWindow(gamestate=gamestate, players=players, max_game_length=2000)
+        app.run()
+        window.game.logger.flush()
+
+        for player in window.game.players.values():
+            if player.is_alive():
+                if player.id is 1:
+                    p1_alive = True
+                else:
+                    p2_alive = True
+
+        if p1_alive is p2_alive:
+            draws += 1
+        elif p1_alive:
+            p1_wins += 1
+        elif p2_alive:
+            p2_wins += 1
+
+        print(str(window.game.logger._results))
+        print("P1 total: " + str(p1_wins))
+        print("P2 total: " + str(p2_wins))
+        print("Draws: " + str(draws))
+
+        p1_alive = False
+        p2_alive = False
+        i += 1
