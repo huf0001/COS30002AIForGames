@@ -30,85 +30,34 @@ class ComplexTactical(object):
     
     def update(self, gameinfo):     
         # only send one fleet at a time
-        if gameinfo.my_fleets:
-            return
-
-        # check if we should make a move
-        if gameinfo.my_planets and gameinfo.not_my_planets:
-            self.best_planets = self.get_best_planets(gameinfo.my_planets.values())
-            self.check_state(gameinfo)
-            src = None
-            dest = None
-            dests = []
+        if not gameinfo.my_fleets:
+            # check if we should make a move
+            if gameinfo.my_planets and gameinfo.not_my_planets:
+                self.best_planets = self.get_best_planets(gameinfo.my_planets.values())
+                self.check_state(gameinfo)
+           
+                if self.state is State.Attacking:  
+                    self.attack(gameinfo)
             
-            #Attacking: getting enemy's highly productive planets
-            if self.state is State.Attacking:  
-                print("Attacking")
-                dests = self.rank_by_productive(gameinfo.enemy_planets.values())
+                elif self.state is State.Defending:
+                    self.defend(gameinfo)
 
-                for p in dests:
-                    src = self.find_closest_to(self.find_all_stronger(gameinfo.my_planets.values(), p.num_ships + (2 * self.leave_in_reserve)), p)
-                    
-                    if src is not None:
-                        dest = p
-                        break
+                elif self.state is State.Growing:
+                    self.grow(gameinfo)
 
-                if src is not None:
-                    print("Found source")
-                    self.dispatch_fleet(gameinfo, src, dest, int(src.num_ships - self.leave_in_reserve))
-                    return
+                elif self.state is State.Raiding:
+                    self.raid(gameinfo)
+
+                elif self.state is State.Waiting:
+                    print("Can't see any planets to attack. Waiting...")
+
                 else:
-                    self.state = State.Sabotaging
-            
-            #Defending: reinforcing my most productive planets
-            elif self.state is State.Defending:
-                print("Reinforcing high-production planets")
-                dest = self.find_weakest(self.best_planets)
-                src = self.find_strongest_excluding_best(gameinfo.my_planets.values(), self.best_planets)
-                self.dispatch_fleet(gameinfo, src, dest, int(src.num_ships / 2))
-                return
+                    print("Error: AI ComplexTactical.state has not been asigned a valid value")
+                    print("Forcing AI ComplexTactical to grow")
+                    self.state = State.Growing
+                    self.grow(gameinfo)
 
-            #Growing: getting any highly productive planet, enemy or not
-            elif self.state is State.Growing:
-                print("Growing")
-                dests = self.rank_by_productive(gameinfo.not_my_planets.values())
-
-                for p in dests:
-                    src = self.find_closest_to(self.find_all_stronger(gameinfo.my_planets.values(), p.num_ships + (2 * self.leave_in_reserve)), p)
-                    
-                    if src is not None:
-                        dest = p
-                        break
-
-                if src is not None:
-                    print("Found source")
-                    self.dispatch_fleet(gameinfo, src, dest, int(src.num_ships - self.leave_in_reserve))
-                    return
-                else:
-                    self.state = State.Sabotaging
-
-            #Raiding: attacking a planet the enemy just left vulnerable
-            elif self.state is State.Raiding:
-                print("RAIDING!!! (to be implemented)")
-                #self.dispatch_fleet(gameinfo, src, dest, "num_ships")
-                self.new_enemy_fleet = None
-
-            #Waiting: "And neutral jing, when you do nothing." - King Bumi
-            elif self.state is State.Waiting:
-                print("Can't see any planets to attack. Waiting...")
-                return
-
-            #Other: an error has occured
-            else:
-                print("Error: AI ComplexTactical.state has not been asigned a valid value")
-                return
-
-            #Sabotaging: attacking an average-production enemy planet from a low-production planet with lots of ships
-            if self.state is State.Sabotaging:
-                print("Nope, sabotaging instead . . .")
-                src = self.find_least_productive_but_strongest(gameinfo.my_planets.values())
-                dest = self.find_median_production(gameinfo.enemy_planets.values())
-                self.dispatch_fleet(gameinfo, src, dest, int(src.num_ships / 2))
+        self.new_enemy_fleet = None
 
     def check_state(self, gameinfo):        
         # states:
@@ -133,23 +82,104 @@ class ComplexTactical(object):
             self.state = State.Attacking
         
         if self.state is State.Attacking or self.state is State.Growing:
-            if self.new_enemy_fleet is not None:
-                if self.new_enemy_fleet.dest in self.best_planets:
-                    defender = self.closest_of_strongest(self.new_enemy_fleet.dest, gameinfo.my_planets.values())
+            if self.defend_enemy_target():
+                self.state = State.Defending
+            elif self.new_enemy_fleet is not None:            
+                self.state = State.Raiding
+
+#----------------------------------------------------------------------------------------------------------------------------------------------
+
+    #Attacking: getting enemy's highly productive planets
+    def attack(self, gameinfo):
+        print("Attacking")
+        dests = self.rank_by_productive(gameinfo.enemy_planets.values())
+
+        for p in dests:
+            src = self.find_closest_to(self.find_all_stronger(gameinfo.my_planets.values(), p.num_ships + (2 * self.leave_in_reserve)), p)
                     
-                    if defender is not None:
-                        if self.new_enemy_fleet.dest.distance_to(defender) < self.new_enemy_fleet.dest.distance_to(self.new_enemy_fleet.src):
-                            self.state = State.Defending
-                            return
-            
-            self.state = State.Raiding
+            if src is not None:
+                dest = p
+                break
+
+        if src is not None:
+            print("Found source")
+            self.dispatch_fleet(gameinfo, src, dest, int(src.num_ships - self.leave_in_reserve))
+            return
+        else:
+            self.state = State.Sabotaging
+            self.sabotage(gameinfo)
+
+    #Defending: reinforcing my most productive planets
+    def defend(self, gameinfo):
+        print("Reinforcing high-production planets")
+
+        if self.defend_enemy_target():
+            dest = self.new_enemy_fleet.dest
+
+            if dest not in self.best_planets:
+                self.best_planets.append(dest)
+        else:
+            dest = self.find_weakest(self.best_planets)
+
+        src = self.find_strongest_excluding_best(gameinfo.my_planets.values(), self.best_planets)
+        self.dispatch_fleet(gameinfo, src, dest, int(src.num_ships / 2))
+
+    #Growing: getting any highly productive planet, enemy or not
+    def grow(self, gameinfo):
+        print("Growing")
+        dest = None
+        dests = self.rank_by_productive(gameinfo.not_my_planets.values())
+
+        for p in dests:
+            src = self.find_closest_to(self.find_all_stronger(gameinfo.my_planets.values(), p.num_ships + (2 * self.leave_in_reserve)), p)
+                    
+            if src is not None:
+                dest = p
+                break
+
+        if src is not None:
+            print("Found source")
+            self.dispatch_fleet(gameinfo, src, dest, int(src.num_ships - self.leave_in_reserve))
+        else:
+            self.state = State.Sabotaging
+            self.sabotage(gameinfo)
+    
+    #Raiding: attacking a planet the enemy just left vulnerable
+    def raid(self, gameinfo):
+        print("RAIDING!!!")
+        stronger_on_combat = self.find_all_stronger_on_combat(gameinfo.my_planets.values(), self.new_enemy_fleet.src, self.new_enemy_fleet.src.num_ships + (2 * self.leave_in_reserve))
+        src = self.find_closest_to(stronger_on_combat, self.new_enemy_fleet.src)
+                    
+        if src is not None:
+            self.dispatch_fleet(gameinfo, src, self.new_enemy_fleet.src, int(src.num_ships - self.leave_in_reserve))
+        else:
+            self.grow(gameinfo)
+
+    #Sabotaging: attacking an average-production enemy planet from a low-production planet with lots of ships
+    def sabotage(self, gameinfo):
+        print("Nope, sabotaging instead . . .")
+        src = self.find_least_productive_but_strongest(gameinfo.my_planets.values())
+        dest = self.find_median_production(gameinfo.enemy_planets.values())
+        self.dispatch_fleet(gameinfo, src, dest, int(src.num_ships / 2))
+
+#-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+    def defend_enemy_target(self):
+        if self.new_enemy_fleet is not None:
+            if self.new_enemy_fleet.dest in self.best_planets:
+                defender = self.closest_of_strongest(self.new_enemy_fleet.dest, gameinfo.my_planets.values())
+                    
+                if defender is not None:
+                    if self.new_enemy_fleet.dest.distance_to(defender) < self.new_enemy_fleet.dest.distance_to(self.new_enemy_fleet.src):
+                        return True
+        return False
 
     def find_closest_to(self, planets, dest):
         closest = None
         dist = 9999999999
 
         for p in planets:
-            if p.distance_to(dest) < dist:
+            if p.distance_to(dest) < dist and p is not dest:
                 closest = p
                 dist = p.distance_to(dest)
 
@@ -182,14 +212,26 @@ class ComplexTactical(object):
         return self.find_strongest(least_productive)
 
     def find_median_production(self, planets):
+        if len(planets) is 0:
+            return None
+        
         sorted = []
 
         for p in planets:
             sorted.append(p)
 
-        sorted.sort(key = lambda x: x.growth_rate)
+        if len(sorted) == 1:
+            return sorted[0]
+        else:
+            sorted.sort(key = lambda x: x.growth_rate)
+            middle = int(len(sorted) / 2)
 
-        return sorted[round(len(sorted) / 2)]
+            if middle < 0:
+                middle = 0
+            elif middle >= len(sorted):
+                middle = len(sorted) - 1
+
+            return sorted[middle]
 
     #def find_most_productive(self, planets):
     #    most_productive = None
@@ -269,6 +311,16 @@ class ComplexTactical(object):
 
         return stronger
 
+    def find_all_stronger_on_combat(self, planets, dest, target_ships):
+        stronger_on_combat = []
+        stronger = self.find_all_stronger(planets, target_ships)
+
+        for p in stronger:
+            if p.num_ships > 5 + (dest.growth_rate * p.distance_to(dest)) and p is not dest:
+                stronger_on_combat.append(p)
+
+        return stronger_on_combat
+
     ###def find_just_stronger(self, planets, target):
     ###    best = None
     ###    strength = 999999999
@@ -304,5 +356,3 @@ class ComplexTactical(object):
     def dispatch_fleet(self, gameinfo, src, dest, num_ships):
         gameinfo.planet_order(src, dest, num_ships)
         self.bot_events.new_fleet(src, dest)
-
-
