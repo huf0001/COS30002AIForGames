@@ -38,7 +38,7 @@ class SimpleTactical(object):
 
                 if src is not None:
                     print("Found source")
-                    self.dispatch_fleet(src, dest, int(src.num_ships - self.leave_in_reserve))
+                    self.dispatch_fleet(gameinfo, src, dest, int(src.num_ships - self.leave_in_reserve))
                 else:
                     print("No known suitable source")
             
@@ -56,7 +56,7 @@ class SimpleTactical(object):
 
                 if src is not None:
                     print("Found source")
-                    self.dispatch_fleet(src, dest, int(src.num_ships - self.leave_in_reserve))
+                    self.dispatch_fleet(gameinfo, src, dest, int(src.num_ships - self.leave_in_reserve))
                 else:
                     print("No known suitable source")            
 

@@ -212,8 +212,8 @@ class PlanetWarsWindow(window.Window):
         clWhite = (255, 255, 255, 255)
         self.step_label = Label('STEP', x=5, y=self.height - 20, color=clWhite)
         self.fps = 0
-        self.set_fps(20)
-#self.set_fps(100)
+#self.set_fps(20)
+        self.set_fps(100)
         self.paused = False
         self.view_id = 0
         self.label_type = 'num_ships'
@@ -350,20 +350,20 @@ if __name__ == '__main__':
     draws = 0
     p1_alive = False
     p2_alive = False
-    games = 10
+    games = 20
     window = None
 
     # choose from maps 0 to 100
     # for results, chose 6, 26, and 88
-    gamestate = open('./maps/map6.txt').read()
+    gamestate = open('./maps/map88.txt').read()
     
     # Available AIs:
     #   Naive
     #   SimpleTactical
     #   ComplexTactical
     
-    players = ['Naive', 'ComplexTactical']    
-    #players = ['ComplexTactical', 'Naive']
+    #players = ['SimpleTactical', 'ComplexTactical']    
+    players = ['ComplexTactical', 'SimpleTactical']
 
     while i < games:
         window = PlanetWarsWindow(gamestate=gamestate, players=players, max_game_length=2000)
