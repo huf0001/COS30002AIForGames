@@ -355,7 +355,7 @@ if __name__ == '__main__':
 
     # choose from maps 0 to 100
     # for results, chose 6, 26, and 88
-    gamestate = open('./maps/map88.txt').read()
+    gamestate = open('./maps/map26.txt').read()
     
     # Available AIs:
     #   Naive

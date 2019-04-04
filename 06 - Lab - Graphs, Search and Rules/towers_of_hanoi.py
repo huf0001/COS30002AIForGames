@@ -154,7 +154,10 @@ def solve_using_recursion(n):
     moves = []
     # This is the recursively called "move" function
     def move(n, src, dest, aux):
-        pass
+        if n> 0:
+        	move(n-1, src, aux, dest) #move src disk out of the way (using recursion)
+        	moves.append((src, dest))
+        	move(n-1, aux, dest, src) #move out-of-way back to dest (using recursions)
 
     # generate the recursive sequence stored in moves
     print('Generating set of moves for %d (2^n - 1 = %d) disks using recusion ... ' % (n, 2**n -1))
@@ -205,8 +208,22 @@ def attempt_using_random_moves(n, limit):
             status = 'Hit Limit. No solution.'
         else:
             # Default pointless move
-            src, dest = 0, 0
+            #src, dest = 0, 0
 
+        	#Step 3: Random, not-pointless move
+            src, dest = sample([0, 1, 2], 2)
+            #Step 3: Random, not-pointless move
+
+            # #Step 4: Random sample, but reject if it's a reversal ._. (no point going backwards all the time . . .)
+            # _src, _dest = history[-1]
+
+            # # this is python style do-until loop
+            # while True:
+            # 	src, dest = sample([0, 1, 2], 2)
+            # 	if (src != _dest) or (dest != _src):
+            # 		break
+			# #Step 4: Random sample, but reject if it's a reversal ._. (no point going backwards all the time . . .)
+            
             # What is the new state using the random src and desk poles
             # - This might return None if move not valid (no src disk exists to move)
             new_s = move_disk(s, src, dest)
@@ -214,12 +231,20 @@ def attempt_using_random_moves(n, limit):
 
             # Is the new state valid? only keep it if it is ...
             if new_s:
-                ### TODO: extension  test/add to cache here to avoid loops
-                valid = is_valid_state(new_s)
-                # if new state is valid, keep it
-                if valid:
-                    s = new_s
-                    history.append((src, dest))
+                # ### TODO: extension  test/add to cache here to avoid loops
+                # valid = is_valid_state(new_s)
+                # # if new state is valid, keep it
+                # if valid:
+                #     s = new_s
+                #     history.append((src, dest))
+
+                #Extension: test/add to cache to avoid loops
+            	if is_valid_state(new_s):
+	                if new_s not in cache.values():
+		                s = new_s
+		                cache[count]  = s
+		                history.append((src, dest))
+                #Extension: test/add to cache to avoid loops
         count += 1
 
     # remove first fake move (keeps things pretty)
@@ -271,7 +296,7 @@ if __name__ == "__main__":
         s = init_poles(n)
         print_poles_as_text(s, n)
         ### 3. Complete the sequence of moves to solve the game
-        moves = [(0, 2), (0, 1)]
+        moves = [(0, 2), (0, 1), (2, 1), (0, 2), (1, 0), (1, 2), (0, 2)]
         for src, dest in moves:
             print('> Moving from', src, 'to', dest)
             s = move_disk(s, src, dest)
@@ -283,9 +308,12 @@ if __name__ == "__main__":
 
     ### 4 Try to find the solution using random (but valid) guesses for each move
     if False:
-        attempt_using_random_moves(n=3, limit=100)
+    	for i in range(0, 10):
+        	print("Round " + str(i + 1))
+        	attempt_using_random_moves(n=3, limit=100)
+        	print()
 
     ### 5 Generate the recursive sequence of moves
-    if False:
+    if True:
         solve_using_recursion(n=3)
 
