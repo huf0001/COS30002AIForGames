@@ -132,7 +132,7 @@ if __name__ == "__main__":
         assert s == (5, 0)
         s = fill(s, 1)
         print(s)
-        assert s == (5, 0)
+        assert s == (5, 3)
         print(s)
         # test emtpy
         s = empty(s, 0)
@@ -140,19 +140,19 @@ if __name__ == "__main__":
         assert s == (0, 3)
         s = empty(s, 1)
         print(s)
-        assert s == (0, 3)
+        assert s == (0, 0)
         # test pour / leftover actions
         s = fill(s, 0)
         assert s == (5, 0)
         s = pour(s, 0, 1)
         print(s)
-        assert s == (2, 5)
+        assert s == (2, 3)
         s = empty(s, 0)
         print(s)
         assert s == (0, 3)
         s = pour(s, 1, 0)
         print(s)
-        assert s == (5, 0)
+        assert s == (3, 0)
         s = fill(s, 1)
         print(s)
         assert s == (3, 3)
@@ -174,11 +174,12 @@ if __name__ == "__main__":
             # tuples, string of method to call then arguments to call
             ('fill',  (0,)),
             ('pour',  (0, 1)),  # (5,0) poor 1 into 2
-            ('empty', (1,)),  # (2,3) empty 2
+            ('empty', (1,)),    # (2,3) empty 2
             ('pour',  (0, 1)),  # (2,0) tranfer from 1 to 2
-            ('fill',  (0,)),  # (0,2) fill jug 1
+            ('fill',  (0,)),    # (0,2) fill jug 1
+            ('pour', (0, 1))    # (5,2) pour 1 into 2
             # TODO: missing move - see header for sequence.
-            # result should be (4,0)
+            # result should be (4,N)
         ]
 
         # execute the sequence of actions
@@ -203,6 +204,13 @@ if __name__ == "__main__":
             # tuples, string of method to call then arguments to call
             ('fill',  [1]),     # fill jug 2 => (0,3)
             ('pour',  [1, 0]),  # transfer 2 to jug 1 => (3,0)
+            ('fill', [1]),      # fill jug 2 => (3,3)
+            ('pour', [1, 0]),   # transfer 2 to jug 1 => (5,1)
+            ('empty', [0]),     # empty jug 1 => (0,1)
+            ('pour', [1, 0]),   # transfer 2 to jug 1 => (1,0)
+            ('fill', [1]),      # fill jug 2 => (1,3)
+            ('pour', [1,0])     # transfer 2 to jug 1 => (4,0)
+
             ###TODO: complete the sequence
             # result should be (4,0)
         ]
@@ -216,7 +224,7 @@ if __name__ == "__main__":
         print('Done')
 
     # Random choice from all possible actions for a fixed problem
-    if False:
+    if True:
         # There is a set of six unique actions to choose from
         actions = [
             # all possible fill's
@@ -240,15 +248,16 @@ if __name__ == "__main__":
         # For the Die Hard 3 movie two-jug problem ...
         JUG_CFG = [5, 3]
         s = setup_jugs()
-        s_end = (4, 0)
+        #s_end = (4, 0)
 
         ###TODO: use a list of valid end_states, not just one
-        #end_states = [(4,0)]
+        end_states = [(4,0), (4,1), (4,2), (4,3)]
 
         status = 'searching'
         count = 0
-        limit = 4000
+        limit = 8000
         history = []  # history of moves taken
+        cache = [(0,0)]
 
         # Search loop
         print('Trying a random action search:')
@@ -260,12 +269,15 @@ if __name__ == "__main__":
 
             # print(str(fn.__name__), args, 'on', s, '=>', new_s)  # details
             # print('.', end='')  # progress dots ...
-            print(new_s, end=' ')  # verbose
+            # print(new_s, end=' ')  # verbose
 
             # if move outcome state is valid (not None) keep it
-            if new_s:
+            if new_s and new_s not in cache:
+                s = new_s
+                print(s, end=' ')  # verbose
                 history.append((fn, args))
-                if new_s == s_end:
+                cache.append(s)
+                if s in end_states:
                     status = 'Success'
 
             # count and stop test
