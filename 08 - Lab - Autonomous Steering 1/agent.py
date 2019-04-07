@@ -20,12 +20,6 @@ AGENT_MODES = {
     KEY._6: 'pursuit'
 }
 
-AGENT_MODELS = [
-	'dart',
-	'block',
-	'ufo'
-]
-
 class Agent(object):
 
     # NOTE: Class Object (not *instance*) variables!
@@ -49,11 +43,21 @@ class Agent(object):
         self.acceleration = Vector2D()  # current steering force
         self.applying_friction = False
 
+
+        AGENT_MODELS = [
+        	'dart',
+        	'block',
+        	'ufo'
+        ]
+
         model = AGENT_MODELS[randrange(0, 3)]
+
         if model == "dart":
 	        self.mass = 1.0
 	        # limits?
-	        self.max_speed = 5000.0
+	        self.max_forward_speed = 5000.0
+	        self.max_sideways_speed = 4000.0
+	        self.max_reverse_speed = 1000.0
 	        # data for drawing this agent
 	        self.color = 'ORANGE'
 	        self.vehicle_shape = [
@@ -64,7 +68,9 @@ class Agent(object):
         elif model == "block":
         	self.mass = 1.5
 	        # limits?
-	        self.max_speed = 4000.0
+	        self.max_forward_speed = 4000.0
+	        self.max_sideways_speed = 3200.0
+	        self.max_reverse_speed = 1000.0
 	        # data for drawing this agent
 	        self.color = 'RED'
 	        self.vehicle_shape = [
@@ -76,7 +82,9 @@ class Agent(object):
         else:
         	self.mass = 2.0
 	        # limits?
-	        self.max_speed = 3000.0
+	        self.max_forward_speed = 3000.0
+	        self.max_sideways_speed = 2400.0
+	        self.max_reverse_speed = 1000.0
 	        # data for drawing this agent
 	        self.color = 'PURPLE'
 	        self.vehicle_shape = [
@@ -103,8 +111,8 @@ class Agent(object):
             accel = self.arrive(self.world.target, 'fast')
         elif mode == 'flee':
             accel = self.flee(self.world.target)
-##        elif mode == 'pursuit':
-##            accel = self.pursuit(self.world.hunter)
+        elif mode == 'pursuit':
+            accel = self.pursuit(self.world.evader)
         else:
             accel = Vector2D()
         self.acceleration = accel
@@ -114,9 +122,10 @@ class Agent(object):
         ''' update vehicle position and orientation '''
         acceleration = self.calculate()
         # new velocity
-        self.vel += acceleration * delta
+        self.vel += acceleration * (delta / self.mass)
         # check for limits of new velocity
-        self.vel.truncate(self.max_speed)
+        #self.vel.truncate(self.max_forward_speed)
+        self.vel = self.enforce_speed_limit(self.vel)
         # apply friction
         if self.applying_friction:
         	self.vel += self.apply_friction() * delta
@@ -131,7 +140,14 @@ class Agent(object):
 
     def render(self, color=None):
         ''' Draw the triangle agent with color'''
-        egi.set_pen_color(name=self.color)
+
+        if self.world.agent_mode == 'pursuit':
+        	if self.mode == 'pursuit':
+        		egi.set_pen_color(name='RED')
+        	else:
+        		egi.set_pen_color(name='WHITE')
+        else:
+        	egi.set_pen_color(name=self.color)
         egi.set_stroke(2)
         pts = self.world.transform_points(self.vehicle_shape, self.pos,
                                           self.heading, self.side, self.scale)
@@ -142,15 +158,23 @@ class Agent(object):
         return self.vel.length()
 
     def apply_friction(self):
-        look_ahead_pos = self.pos + self.vel * 0.1
-        accel_for_pos_ahead = self.seek(look_ahead_pos)
-        friction = accel_for_pos_ahead * -0.1
-        return friction
+    	future_pos = self.pos + self.vel * 0.1
+    	accel_to_future_pos = self.seek(future_pos)
+
+    	if self.model == "dart":
+    		friction_multiplier = -0.1
+    	if self.model == "block":
+    		friction_multiplier = -0.2
+    	if self.model == "ufo":
+    		friction_multiplier = -0.3
+
+    	friction = accel_to_future_pos * friction_multiplier
+    	return friction
     #--------------------------------------------------------------------------
 
     def seek(self, target_pos):
         ''' move towards target position '''
-        desired_vel = (target_pos - self.pos).normalise() * self.max_speed
+        desired_vel = (target_pos - self.pos).normalise() * self.max_forward_speed
         return (desired_vel - self.vel)
 
     def flee(self, hunter_pos):
@@ -160,7 +184,7 @@ class Agent(object):
         if self.distance(hunter_pos) > panic_range:
         	return Vector2D(0, 0)
 
-        desired_vel = (self.pos - hunter_pos).normalise() * self.max_speed
+        desired_vel = (self.pos - hunter_pos).normalise() * self.max_forward_speed
         return (desired_vel - self.vel)
 
     def arrive(self, target_pos, speed):
@@ -174,7 +198,7 @@ class Agent(object):
             # desired deceleration rate
             speed = dist / decel_rate
             # make sure the velocity does not exceed the max
-            speed = min(speed, self.max_speed)
+            speed = min(speed, self.max_forward_speed)
             # from here proceed just like Seek except we don't need to
             # normalize the to_target vector because we have already gone to the
             # trouble of calculating its length for dist.
@@ -183,12 +207,35 @@ class Agent(object):
         return Vector2D(0, 0)
 
     def pursuit(self, evader):
-        ''' this behaviour predicts where an agent will be in time T and seeks
-            towards that point to intercept it. '''
-## OPTIONAL EXTRA... pursuit (you'll need something to pursue!)
-        return Vector2D()
+    	''' this behaviour predicts where an agent will be in time T and seeks
+    		towards that point to intercept it. '''
+    	to_evader = evader.pos - self.pos
+    	relative_heading = self.heading.dot(evader.heading)
+
+    	if (to_evader.dot(self.heading) > 0) and (relative_heading < 0.95):
+    		return self.seek(evader.pos)
+
+    	future_time = to_evader.length()/(self.max_forward_speed + evader.speed())
+    	#future_time += (1 - self.heading.dot(evader.vel))
+    	future_pos = evader.pos + evader.vel * future_time
+    	return self.seek(future_pos)
 
     def distance(self, target_pos):
     	to_target = target_pos - self.pos
     	dist = to_target.length()
     	return dist
+
+    def enforce_speed_limit(self, vel):
+    	result = vel
+
+    	if result.x >= 0:
+    		result.x = min(result.x, self.max_forward_speed)
+    	else:
+    		result.x = max(result.x, -self.max_reverse_speed)	# max_reverse_speed is asigned as +ve
+    															# when applying, it needs to be -ve
+    	if result.y >= 0:	
+    		result.y = min(result.y, self.max_sideways_speed)
+    	else:
+    		result.y = max(result.y, -self.max_sideways_speed)
+
+    	return result

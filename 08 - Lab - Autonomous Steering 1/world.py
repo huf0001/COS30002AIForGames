@@ -15,7 +15,7 @@ class World(object):
         self.cx = cx
         self.cy = cy
         self.target = Vector2D(cx / 2, cy / 2)
-        self.hunter = None
+        self.evader = None
         self.agents = []
         self.paused = True
         self.showinfo = True

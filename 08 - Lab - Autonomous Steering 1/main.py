@@ -61,10 +61,19 @@ def on_key_press(symbol, modifiers):
     		world.agents.append(Agent(world=world, mode=world.agent_mode))
     		loop -= 1
     elif symbol in AGENT_MODES:
-    	world.agent_mode = AGENT_MODES[symbol]
+    	mode = AGENT_MODES[symbol]
+
+    	if mode == 'pursuit' and len(world.agents) == 1:
+    		return
+
+    	world.agent_mode = mode
 
     	for agent in world.agents:
-            agent.mode = AGENT_MODES[symbol]
+    		agent.mode = mode
+
+    	if mode == 'pursuit':
+    		world.agents[0].mode = 'flee'
+    		world.evader = world.agents[0]
 
     world.new_agents = False
 
@@ -93,6 +102,7 @@ if __name__ == '__main__':
     world = World(500, 500)
     # add one agent
     world.agents.append(Agent(world=world, mode=world.agent_mode))
+    world.evader = world.agents[0]
     # unpause the world ready for movement
     world.paused = False
 
