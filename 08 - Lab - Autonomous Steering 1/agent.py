@@ -20,16 +20,22 @@ AGENT_MODES = {
     KEY._6: 'pursuit'
 }
 
+AGENT_MODELS = [
+	'dart',
+	'block',
+	'ufo'
+]
 
 class Agent(object):
 
     # NOTE: Class Object (not *instance*) variables!
     DECELERATION_SPEEDS = {
         'slow': 0.9,
-        ### ADD 'normal' and 'fast' speeds here
-    }
+        'normal': 0.6,
+        'fast': 0.3
+}
 
-    def __init__(self, world=None, scale=30.0, mass=1.0, mode='seek'):
+    def __init__(self, world=None, scale=30.0, mass=1.0, mode=None):
         # keep a reference to the world object
         self.world = world
         self.mode = mode
@@ -41,16 +47,48 @@ class Agent(object):
         self.side = self.heading.perp()
         self.scale = Vector2D(scale, scale)  # easy scaling of agent size
         self.acceleration = Vector2D()  # current steering force
-        self.mass = mass
-        # limits?
-        self.max_speed = 5000.0
-        # data for drawing this agent
-        self.color = 'ORANGE'
-        self.vehicle_shape = [
-            Point2D(-1.0,  0.6),
-            Point2D( 1.0,  0.0),
-            Point2D(-1.0, -0.6)
-        ]
+        self.applying_friction = False
+
+        model = AGENT_MODELS[randrange(0, 3)]
+        if model == "dart":
+	        self.mass = 1.0
+	        # limits?
+	        self.max_speed = 5000.0
+	        # data for drawing this agent
+	        self.color = 'ORANGE'
+	        self.vehicle_shape = [
+	            Point2D(-1.0,  0.6),
+	            Point2D( 1.0,  0.0),
+	            Point2D(-1.0, -0.6)
+	        ]
+        elif model == "block":
+        	self.mass = 1.5
+	        # limits?
+	        self.max_speed = 4000.0
+	        # data for drawing this agent
+	        self.color = 'RED'
+	        self.vehicle_shape = [
+	            Point2D(-1.0,  0.6),
+	            Point2D( 1.0,  0.6),
+	            Point2D( 1.0, -0.6),
+	            Point2D(-1.0, -0.6)
+	        ]
+        else:
+        	self.mass = 2.0
+	        # limits?
+	        self.max_speed = 3000.0
+	        # data for drawing this agent
+	        self.color = 'PURPLE'
+	        self.vehicle_shape = [
+	            Point2D( 0.4,  1.0),
+	            Point2D(-0.4,  1.0),
+	            Point2D(-1.0,  0.4),
+	            Point2D(-1.0, -0.4),
+	            Point2D(-0.4, -1.0),
+	            Point2D( 0.4, -1.0),
+	            Point2D( 1.0, -0.4),
+	            Point2D( 1.0,  0.4)	            
+	        ]
 
     def calculate(self):
         # reset the steering force
@@ -59,14 +97,14 @@ class Agent(object):
             accel = self.seek(self.world.target)
         elif mode == 'arrive_slow':
             accel = self.arrive(self.world.target, 'slow')
-##        elif mode == 'arrive_normal':
-##            force = self.arrive(self.world.target, 'normal')
-##        elif mode == 'arrive_fast':
-##            force = self.arrive(self.world.target, 'fast')
+        elif mode == 'arrive_normal':
+            accel = self.arrive(self.world.target, 'normal')
+        elif mode == 'arrive_fast':
+            accel = self.arrive(self.world.target, 'fast')
         elif mode == 'flee':
             accel = self.flee(self.world.target)
 ##        elif mode == 'pursuit':
-##            force = self.pursuit(self.world.hunter)
+##            accel = self.pursuit(self.world.hunter)
         else:
             accel = Vector2D()
         self.acceleration = accel
@@ -79,6 +117,9 @@ class Agent(object):
         self.vel += acceleration * delta
         # check for limits of new velocity
         self.vel.truncate(self.max_speed)
+        # apply friction
+        if self.applying_friction:
+        	self.vel += self.apply_friction() * delta
         # update position
         self.pos += self.vel * delta
         # update heading is non-zero velocity (moving)
@@ -100,6 +141,11 @@ class Agent(object):
     def speed(self):
         return self.vel.length()
 
+    def apply_friction(self):
+        look_ahead_pos = self.pos + self.vel * 0.1
+        accel_for_pos_ahead = self.seek(look_ahead_pos)
+        friction = accel_for_pos_ahead * -0.1
+        return friction
     #--------------------------------------------------------------------------
 
     def seek(self, target_pos):
@@ -109,9 +155,13 @@ class Agent(object):
 
     def flee(self, hunter_pos):
         ''' move away from hunter position '''
-## add panic distance (second)
-## add flee calculations (first)
-        return Vector2D()
+        panic_range = 100
+
+        if self.distance(hunter_pos) > panic_range:
+        	return Vector2D(0, 0)
+
+        desired_vel = (self.pos - hunter_pos).normalise() * self.max_speed
+        return (desired_vel - self.vel)
 
     def arrive(self, target_pos, speed):
         ''' this behaviour is similar to seek() but it attempts to arrive at
@@ -137,3 +187,8 @@ class Agent(object):
             towards that point to intercept it. '''
 ## OPTIONAL EXTRA... pursuit (you'll need something to pursue!)
         return Vector2D()
+
+    def distance(self, target_pos):
+    	to_target = target_pos - self.pos
+    	dist = to_target.length()
+    	return dist

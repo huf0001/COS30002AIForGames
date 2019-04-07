@@ -19,6 +19,8 @@ class World(object):
         self.agents = []
         self.paused = True
         self.showinfo = True
+        self.new_agents = False
+        self.agent_mode = 'seek'
 
     def update(self, delta):
         if not self.paused:
