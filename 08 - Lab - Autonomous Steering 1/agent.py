@@ -27,7 +27,7 @@ class Agent(object):
         'slow': 0.9,
         'normal': 0.6,
         'fast': 0.3
-}
+    }
 
     def __init__(self, world=None, scale=30.0, mass=1.0, mode=None):
         # keep a reference to the world object
@@ -58,6 +58,7 @@ class Agent(object):
 	        self.max_forward_speed = 5000.0
 	        self.max_sideways_speed = 4000.0
 	        self.max_reverse_speed = 1000.0
+	        self.friction = 0.1
 	        # data for drawing this agent
 	        self.color = 'ORANGE'
 	        self.vehicle_shape = [
@@ -71,6 +72,7 @@ class Agent(object):
 	        self.max_forward_speed = 4000.0
 	        self.max_sideways_speed = 3200.0
 	        self.max_reverse_speed = 1000.0
+	        self.friction = 0.2
 	        # data for drawing this agent
 	        self.color = 'RED'
 	        self.vehicle_shape = [
@@ -85,6 +87,7 @@ class Agent(object):
 	        self.max_forward_speed = 3000.0
 	        self.max_sideways_speed = 2400.0
 	        self.max_reverse_speed = 1000.0
+	        self.friction = 0.3
 	        # data for drawing this agent
 	        self.color = 'PURPLE'
 	        self.vehicle_shape = [
@@ -160,15 +163,7 @@ class Agent(object):
     def apply_friction(self):
     	future_pos = self.pos + self.vel * 0.1
     	accel_to_future_pos = self.seek(future_pos)
-
-    	if self.model == "dart":
-    		friction_multiplier = -0.1
-    	if self.model == "block":
-    		friction_multiplier = -0.2
-    	if self.model == "ufo":
-    		friction_multiplier = -0.3
-
-    	friction = accel_to_future_pos * friction_multiplier
+    	friction = accel_to_future_pos * -self.friction
     	return friction
     #--------------------------------------------------------------------------
 
