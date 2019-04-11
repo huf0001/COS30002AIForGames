@@ -44,7 +44,6 @@ class Agent(object):
         self.scale = Vector2D(scale, scale)  # easy scaling of agent size
         self.force = Vector2D()  # current steering force
         self.accel = Vector2D() # current acceleration due to force
-        self.acceleration = Vector2D()  # current steering force
         self.applying_friction = False
 
 
@@ -57,53 +56,53 @@ class Agent(object):
         model = AGENT_MODELS[randrange(0, 3)]
 
         if model == "dart":
-	        self.mass = 1.0
-	        # limits?
-	        self.max_forward_speed = 5000.0 * self.scale
-	        self.max_sideways_speed = 4000.0 * self.scale
-	        self.max_reverse_speed = 1000.0 * self.scale
-	        self.friction = 0.1
-	        # data for drawing this agent
-	        self.color = 'ORANGE'
-	        self.vehicle_shape = [
-	            Point2D(-1.0,  0.6),
-	            Point2D( 1.0,  0.0),
-	            Point2D(-1.0, -0.6)
-	        ]
+            self.mass = 1.0
+            # limits?
+            self.max_forward_speed = 5000.0# * self.scale.length()
+            self.max_sideways_speed = 4000.0# * self.scale.length()
+            self.max_reverse_speed = 1000.0# * self.scale.length()
+            self.friction = 0.1
+            # data for drawing this agent
+            self.color = 'ORANGE'
+            self.vehicle_shape = [
+                Point2D(-1.0,  0.6),
+                Point2D( 1.0,  0.0),
+                Point2D(-1.0, -0.6)
+            ]
         elif model == "block":
-        	self.mass = 1.5
-	        # limits?
-	        self.max_forward_speed = 4000.0 * self.scale
-	        self.max_sideways_speed = 3200.0 * self.scale
-	        self.max_reverse_speed = 1000.0 * self.scale
-	        self.friction = 0.2
-	        # data for drawing this agent
-	        self.color = 'RED'
-	        self.vehicle_shape = [
-	            Point2D(-1.0,  0.6),
-	            Point2D( 1.0,  0.6),
-	            Point2D( 1.0, -0.6),
-	            Point2D(-1.0, -0.6)
-	        ]
+            self.mass = 1.5
+            # limits?
+            self.max_forward_speed = 4000.0# * self.scale.length()
+            self.max_sideways_speed = 3200.0# * self.scale.length()
+            self.max_reverse_speed = 1000.0# * self.scale.length()
+            self.friction = 0.2
+            # data for drawing this agent
+            self.color = 'RED'
+            self.vehicle_shape = [
+                Point2D(-1.0,  0.6),
+                Point2D( 1.0,  0.6),
+                Point2D( 1.0, -0.6),
+                Point2D(-1.0, -0.6)
+            ]
         else:
-        	self.mass = 2.0
-	        # limits?
-	        self.max_forward_speed = 3000.0 * self.scale
-	        self.max_sideways_speed = 2400.0 * self.scale
-	        self.max_reverse_speed = 1000.0 * self.scale
-	        self.friction = 0.3
-	        # data for drawing this agent
-	        self.color = 'PURPLE'
-	        self.vehicle_shape = [
-	            Point2D( 0.4,  1.0),
-	            Point2D(-0.4,  1.0),
-	            Point2D(-1.0,  0.4),
-	            Point2D(-1.0, -0.4),
-	            Point2D(-0.4, -1.0),
-	            Point2D( 0.4, -1.0),
-	            Point2D( 1.0, -0.4),
-	            Point2D( 1.0,  0.4)	            
-	        ]
+            self.mass = 2.0
+            # limits?
+            self.max_forward_speed = 3000.0# * self.scale.length()
+            self.max_sideways_speed = 2400.0#* self.scale.length()
+            self.max_reverse_speed = 1000.0# * self.scale.length()
+            self.friction = 0.3
+            # data for drawing this agent
+            self.color = 'PURPLE'
+            self.vehicle_shape = [
+                Point2D( 0.4,  1.0),
+                Point2D(-0.4,  1.0),
+                Point2D(-1.0,  0.4),
+                Point2D(-1.0, -0.4),
+                Point2D(-0.4, -1.0),
+                Point2D( 0.4, -1.0),
+                Point2D( 1.0, -0.4),
+                Point2D( 1.0,  0.4)
+            ]
 
         ### path to follow?
         # self.path = ??
@@ -122,25 +121,25 @@ class Agent(object):
         # reset the steering force
         mode = self.mode
         if mode == 'seek':
-            accel = self.seek(self.world.target)
+            force = self.seek(self.world.target)
         elif mode == 'arrive_slow':
-            accel = self.arrive(self.world.target, 'slow')
+            force = self.arrive(self.world.target, 'slow')
         elif mode == 'arrive_normal':
-            accel = self.arrive(self.world.target, 'normal')
+            force = self.arrive(self.world.target, 'normal')
         elif mode == 'arrive_fast':
-            accel = self.arrive(self.world.target, 'fast')
+            force = self.arrive(self.world.target, 'fast')
         elif mode == 'flee':
-            accel = self.flee(self.world.target)
+            force = self.flee(self.world.target)
         elif mode == 'pursuit':
-            accel = self.pursuit(self.world.evader)
+            force = self.pursuit(self.world.evader)
         elif mode == 'wander':
             force = self.wander(delta)
         elif mode == 'follow_path':
             force = self.follow_path()
         else:
-            accel = Vector2D()
-        self.acceleration = accel
-        return accel
+            force = Vector2D()
+        self.force = force
+        return force
 
     def update(self, delta):
         ''' update vehicle position and orientation '''
@@ -148,9 +147,9 @@ class Agent(object):
          ## limit force? <-- for wander
         # ...
         # determin the new accelteration
-        self.accel = force / self.mass  # not needed if mass = 1.0
+        self.accel = force * (1 / self.mass)  # not needed if mass = 1.0
         # new velocity
-        self.vel += acceleration * (delta / self.mass)
+        self.vel += self.accel * delta
         # check for limits of new velocity
         #self.vel.truncate(self.max_forward_speed)
         self.vel = self.enforce_speed_limit(self.vel)
