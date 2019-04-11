@@ -52,6 +52,22 @@ class World(object):
         elif pos.y < 0:
             pos.y = max_y - pos.y
 
+    def transform_point(self, point, pos, forward, side):
+        ''' Transform the give nsingle point, using the provided position,
+            and direction (forward and side unit vectors), to object world space. '''
+        # make a copy of the original point (so we don't trash it)
+        wld_pt = point.copy()
+        # create a transformation matrix to perform the operations
+        mat = Matrix33()
+        #rotate
+        mat.rotate_by_vectors_update(forward, side)
+        #and translate
+        mat.translate_update(pos.x, pos.y)
+        # now transform the point (in place)
+        mat.transform_vector2d(wld_pt)
+        #done
+        return wld_pt
+
     def transform_points(self, points, pos, forward, side, scale):
         ''' Transform the given list of points, using the provided position,
             direction and scale, to object world space. '''
