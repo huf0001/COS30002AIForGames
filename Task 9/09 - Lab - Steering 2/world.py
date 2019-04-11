@@ -1,7 +1,6 @@
 '''A 2d world that supports agents with steering behaviour
 
-Created for COS30002 AI for Games by Clinton Woodward <cwoodward@swin.edu.au>
-
+Created for COS30002 AI for Games, by Clinton Woodward <cwoodward@swin.edu.au>
 For class use only. Do not publically share or post this code without permission.
 
 '''
@@ -12,15 +11,16 @@ from graphics import egi
 
 
 class World(object):
-
     def __init__(self, cx, cy):
         self.cx = cx
         self.cy = cy
         self.target = Vector2D(cx / 2, cy / 2)
-        self.hunter = None
+        self.evader = None
         self.agents = []
         self.paused = True
-        self.show_info = True
+        self.showinfo = True
+        self.new_agents = False
+        self.agent_mode = 'seek'
 
     def update(self, delta):
         if not self.paused:
@@ -35,7 +35,7 @@ class World(object):
             egi.red_pen()
             egi.cross(self.target, 10)
 
-        if self.show_info:
+        if self.showinfo:
             infotext = ', '.join(set(agent.mode for agent in self.agents))
             egi.white_pen()
             egi.text_at_pos(0, 0, infotext)

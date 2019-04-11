@@ -1,7 +1,6 @@
 '''3x3 matrix class for 2d operations on 2d points
 
-Created for COS30002 AI for Games by Clinton Woodward <cwoodward@swin.edu.au>
-
+Created for COS30002 AI for Games, by Clinton Woodward <cwoodward@swin.edu.au>
 For class use only. Do not publically share or post this code without permission.
 
 Updated by Steve Dower

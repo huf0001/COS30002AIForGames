@@ -1,11 +1,21 @@
-'''Autonomous Agent Movement: Paths and Wandering
+'''Autonomous Agent Movement: Seek, Arrive and Flee
 
-Created for COS30002 AI for Games by Clinton Woodward <cwoodward@swin.edu.au>
+Created for COS30002 AI for Games, Lab,
+by Clinton Woodward <cwoodward@swin.edu.au>
 
-For class use only. Do not publically share or post this code without permission.
+For class use only. Do not publically share or post this code without
+permission.
 
-This code is essentially the same as the base for the previous steering lab
-but with additional code to support this lab.
+Notes:
+* The graphics.py module provides a simple wrapper around pyglet to make
+  things easier - hence Easy Graphics Interface (egi).
+
+* If you want to respond to a key press, see the on_key_press function.
+* The world contains the agents. In the main loop we tell the world
+  to update() and then render(), which then tells each of the agents
+  it has.
+
+Updated 2019-03-17
 
 '''
 from graphics import egi, KEY
@@ -16,6 +26,19 @@ from vector2d import Vector2D
 from world import World
 from agent import Agent, AGENT_MODES  # Agent with seek, arrive, flee and pursuit
 
+NUM_KEYS = {
+	KEY._0: 0,
+	KEY._1: 1,
+	KEY._2: 2,
+	KEY._3: 3,
+	KEY._4: 4,
+	KEY._5: 5,
+	KEY._6: 6,
+	KEY._7: 7,
+	KEY._8: 8,
+	KEY._9: 9
+}
+
 
 def on_mouse_press(x, y, button, modifiers):
     if button == 1:  # left
@@ -25,20 +48,42 @@ def on_mouse_press(x, y, button, modifiers):
 def on_key_press(symbol, modifiers):
     if symbol == KEY.P:
         world.paused = not world.paused
-    elif symbol in AGENT_MODES:
-        for agent in world.agents:
-            agent.mode = AGENT_MODES[symbol]
-    ## LAB 08 STEP 2: Add agent by pressing a key
-    # ...
 
     ## LAB 09 STEP 1: Reset all paths to new random ones
     # ...
-
+    
     # Toggle debug force line info on the agent
     elif symbol == KEY.I:
         for agent in world.agents:
             agent.show_info = not agent.show_info
+    elif symbol == KEY.F:
+    	for agent in world.agents:
+    		agent.applying_friction = not agent.applying_friction
+    elif symbol == KEY.A:
+    	world.new_agents = True
+    	return
+    elif world.new_agents and symbol in NUM_KEYS:
+    	loop = NUM_KEYS[symbol]
 
+    	while loop > 0:
+    		world.agents.append(Agent(world=world, mode=world.agent_mode))
+    		loop -= 1
+    elif symbol in AGENT_MODES:
+    	mode = AGENT_MODES[symbol]
+
+    	if mode == 'pursuit' and len(world.agents) == 1:
+    		return
+
+    	world.agent_mode = mode
+
+    	for agent in world.agents:
+    		agent.mode = mode
+
+    	if mode == 'pursuit':
+    		world.agents[0].mode = 'flee'
+    		world.evader = world.agents[0]
+
+    world.new_agents = False
 
 
 def on_resize(cx, cy):
@@ -64,7 +109,8 @@ if __name__ == '__main__':
     # create a world for agents
     world = World(500, 500)
     # add one agent
-    world.agents.append(Agent(world))
+    world.agents.append(Agent(world=world, mode=world.agent_mode))
+    world.evader = world.agents[0]
     # unpause the world ready for movement
     world.paused = False
 

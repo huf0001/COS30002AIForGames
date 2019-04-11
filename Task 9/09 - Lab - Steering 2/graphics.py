@@ -1,7 +1,6 @@
 '''A simple proceedural style graphics drawing wrapper.
 
-Created for COS30002 AI for Games by Clinton Woodward <cwoodward@swin.edu.au>
-
+Created for COS30002 AI for Games, by Clinton Woodward <cwoodward@swin.edu.au>
 For class use only. Do not publically share or post this code without permission.
 
 This module creates a simple object named "egi", which is an instance of the
