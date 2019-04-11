@@ -59,6 +59,9 @@ def on_key_press(symbol, modifiers):
     elif symbol == KEY.F:
     	for agent in world.agents:
     		agent.applying_friction = not agent.applying_friction
+    elif symbol == KEY.R:
+    	for agent in world.agents:
+    		agent.randomise_path()
     elif symbol == KEY.A:
     	world.new_agents = True
     	return

@@ -10,6 +10,7 @@ from vector2d import Point2D
 from graphics import egi, KEY
 from math import sin, cos, radians
 from random import random, randrange
+from path import Path
 
 AGENT_MODES = {
     KEY._1: 'seek',
@@ -41,11 +42,14 @@ class Agent(object):
         self.vel = Vector2D()
         self.heading = Vector2D(sin(dir), cos(dir))
         self.side = self.heading.perp()
-        self.scale = Vector2D(scale, scale)  # easy scaling of agent size
+        self.scaleScalar = scale
+        self.scaleVector = Vector2D(scale, scale)  # easy scaling of agent size
         self.force = Vector2D()  # current steering force
         self.accel = Vector2D() # current acceleration due to force
         self.applying_friction = False
-
+        self.path = Path()
+        self.randomise_path()
+        self.waypoint_threshold = 99999.0 #0.0
 
         AGENT_MODELS = [
         	'dart',
@@ -58,9 +62,9 @@ class Agent(object):
         if model == "dart":
             self.mass = 1.0
             # limits?
-            self.max_forward_speed = 5000.0# * self.scale.length()
-            self.max_sideways_speed = 4000.0# * self.scale.length()
-            self.max_reverse_speed = 1000.0# * self.scale.length()
+            self.max_forward_speed = 170.0 * self.scaleScalar
+            self.max_sideways_speed = 140.0 * self.scaleScalar
+            self.max_reverse_speed = 35.0 * self.scaleScalar
             self.friction = 0.1
             # data for drawing this agent
             self.color = 'ORANGE'
@@ -72,9 +76,9 @@ class Agent(object):
         elif model == "block":
             self.mass = 1.5
             # limits?
-            self.max_forward_speed = 4000.0# * self.scale.length()
-            self.max_sideways_speed = 3200.0# * self.scale.length()
-            self.max_reverse_speed = 1000.0# * self.scale.length()
+            self.max_forward_speed = 140.0 * self.scaleScalar
+            self.max_sideways_speed = 110.0 * self.scaleScalar
+            self.max_reverse_speed = 35.0 * self.scaleScalar
             self.friction = 0.2
             # data for drawing this agent
             self.color = 'RED'
@@ -87,9 +91,9 @@ class Agent(object):
         else:
             self.mass = 2.0
             # limits?
-            self.max_forward_speed = 3000.0# * self.scale.length()
-            self.max_sideways_speed = 2400.0#* self.scale.length()
-            self.max_reverse_speed = 1000.0# * self.scale.length()
+            self.max_forward_speed = 100.0 * self.scaleScalar
+            self.max_sideways_speed = 80 * self.scaleScalar
+            self.max_reverse_speed = 35.0 * self.scaleScalar
             self.friction = 0.3
             # data for drawing this agent
             self.color = 'PURPLE'
@@ -168,8 +172,7 @@ class Agent(object):
     def render(self, color=None):
         # draw the path if it exists and the mode is follow
         if self.mode == 'follow_path':
-            ## ...
-            pass
+            self.path.render()
 
         # draw the ship
         if self.world.agent_mode == 'pursuit':
@@ -181,7 +184,7 @@ class Agent(object):
         	egi.set_pen_color(name=self.color)
         egi.set_stroke(2)
         pts = self.world.transform_points(self.vehicle_shape, self.pos,
-                                          self.heading, self.side, self.scale)
+                                          self.heading, self.side, self.scaleScalar)
         # draw it!
         egi.closed_shape(pts)
 
@@ -266,6 +269,25 @@ class Agent(object):
         ''' Random wandering using a projected jitter circle. '''
         ## ...
         return Vector2D()
+
+    def follow_path(self):
+        if self.path.current_pt() is self.path.end_pt():
+            return self.arrive(self.path.current_pt(), "normal")
+        else:
+            to_pt = self.path.current_pt() - self.pos
+            if to_pt.length() < self.waypoint_threshold:
+                return self.seek(self.path.current_pt())
+
+        return Vector2D(0,0)
+
+    #--------------------------------------------------------------------------
+
+    def randomise_path(self):
+        num_pts = 4
+        cx = self.world.cx
+        cy = self.world.cy
+        margin = round(min(cx, cy) * (1/6))    #use this for padding in the next line
+        self.path.create_random_path(num_pts, margin, cx - margin, cy, cy-margin)
 
     def distance(self, target_pos):
     	to_target = target_pos - self.pos

@@ -54,6 +54,11 @@ class Path(object):
         if self.is_finished() and self.looped:
             self._cur_pt_idx = 0
 
+    def end_pt(self):
+        ''' Return the way point of the path indicated by the last point
+            index. '''
+        return self._pts[self._num_pts - 1]
+
     def is_finished(self):
         ''' Return True if at the end of the path. '''
         return self._cur_pt_idx >= self._num_pts - 1
