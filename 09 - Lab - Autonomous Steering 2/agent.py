@@ -24,6 +24,7 @@ AGENT_MODES = {
 }
 
 class Agent(object):
+    # Agent Setup ---------------------------------------------------------------
 
     # NOTE: Class Object (not *instance*) variables!
     DECELERATION_SPEEDS = {
@@ -120,6 +121,8 @@ class Agent(object):
                 Point2D( 1.0, -0.4),
                 Point2D( 1.0,  0.4)
             ]
+
+    # The central logic of the Agent class ------------------------------------------------
 
     def calculate(self, delta):
         # reset the steering force
@@ -224,30 +227,7 @@ class Agent(object):
             egi.line_with_arrow(self.pos+self.vel * s, self.pos+ (self.force+self.vel) * s, 5)
             egi.line_with_arrow(self.pos, self.pos+ (self.force+self.vel) * s, 5)
 
-    def speed(self):
-        return self.vel.length()
-
-    def apply_friction(self):
-    	future_pos = self.pos + self.vel * 0.1
-    	accel_to_future_pos = self.seek(future_pos)
-    	friction = accel_to_future_pos * -self.friction
-    	return friction
-    #--------------------------------------------------------------------------
-
-    def seek(self, target_pos):
-        ''' move towards target position '''
-        desired_vel = (target_pos - self.pos).normalise() * self.max_speed
-        return (desired_vel - self.vel)
-
-    def flee(self, hunter_pos, delta):
-        ''' move away from hunter position '''
-        panic_range = 100
-
-        if self.distance(hunter_pos) > panic_range:
-        	return self.wander(delta)
-
-        desired_vel = (self.pos - hunter_pos).normalise() * self.max_speed
-        return (desired_vel - self.vel)
+    # The motion behaviours of Agent ------------------------------------------------------------------
 
     def arrive(self, target_pos, speed):
         ''' this behaviour is similar to seek() but it attempts to arrive at
@@ -268,6 +248,29 @@ class Agent(object):
             return (desired_vel - self.vel)
         return Vector2D(0, 0)
 
+    def flee(self, hunter_pos, delta):
+        ''' move away from hunter position '''
+        panic_range = 100
+
+        if self.distance(hunter_pos) > panic_range:
+            return self.wander(delta)
+
+        desired_vel = (self.pos - hunter_pos).normalise() * self.max_speed
+        return (desired_vel - self.vel)
+
+    def follow_path(self):
+        if self.path.current_pt() is self.path.end_pt():
+            return self.arrive(self.path.current_pt(), "slow")
+        else:
+            dist = self.distance(self.path.current_pt())
+            if self.distance(self.path.current_pt()) < self.waypoint_threshold:
+                self.path.inc_current_pt()
+            
+            if self.distance(self.path.current_pt()) < self.waypoint_threshold * 3:
+                return self.arrive(self.path.current_pt(), "slow")
+            else:
+                return self.seek(self.path.current_pt())
+
     def pursuit(self, evader):
     	''' this behaviour predicts where an agent will be in time T and seeks
     		towards that point to intercept it. '''
@@ -281,6 +284,11 @@ class Agent(object):
     	#future_time += (1 - self.heading.dot(evader.vel))
     	future_pos = evader.pos + evader.vel * future_time
     	return self.seek(future_pos)
+
+    def seek(self, target_pos):
+        ''' move towards target position '''
+        desired_vel = (target_pos - self.pos).normalise() * self.max_speed
+        return (desired_vel - self.vel)
 
     def wander(self, delta):
         if self.mode == 'flee':
@@ -305,20 +313,18 @@ class Agent(object):
         force = self.seek(wld_target)
         return force 
 
-    def follow_path(self):
-        if self.path.current_pt() is self.path.end_pt():
-            return self.arrive(self.path.current_pt(), "slow")
-        else:
-            dist = self.distance(self.path.current_pt())
-            if self.distance(self.path.current_pt()) < self.waypoint_threshold:
-                self.path.inc_current_pt()
-            
-            if self.distance(self.path.current_pt()) < self.waypoint_threshold * 3:
-                return self.arrive(self.path.current_pt(), "slow")
-            else:
-                return self.seek(self.path.current_pt())
+    # Additional assistive methods used by Agent ------------------------------------------------------
 
-    #--------------------------------------------------------------------------
+    def apply_friction(self):
+        future_pos = self.pos + self.vel * 0.1
+        accel_to_future_pos = self.seek(future_pos)
+        friction = accel_to_future_pos * -self.friction
+        return friction
+
+    def distance(self, target_pos):
+        to_target = target_pos - self.pos
+        dist = to_target.length()
+        return dist
 
     def randomise_path(self):
         num_pts = 4
@@ -327,7 +333,5 @@ class Agent(object):
         margin = min(cx, cy) * (1/6)    #use this for padding in the next line
         self.path.create_random_path(num_pts, margin, margin, cx - margin, cy - margin)
 
-    def distance(self, target_pos):
-    	to_target = target_pos - self.pos
-    	dist = to_target.length()
-    	return dist
+    def speed(self):
+        return self.vel.length()
