@@ -14,9 +14,10 @@ class World(object):
     def __init__(self, cx, cy):
         self.cx = cx
         self.cy = cy
-        self.target = Vector2D(cx / 2, cy / 2)
+        #self.target = Vector2D(cx / 2, cy / 2)
         self.evader = None
         self.agents = []
+        self.obstacles = []
         self.paused = True
         self.showinfo = True
         self.new_agents = False
@@ -31,9 +32,12 @@ class World(object):
         for agent in self.agents:
             agent.render()
 
-        if self.target:
-            egi.red_pen()
-            egi.cross(self.target, 10)
+        for obstacle in self.obstacles:
+            obstacle.render()
+
+        # if self.target:
+        #     egi.red_pen()
+        #     egi.cross(self.target, 10)
 
         if self.showinfo:
             infotext = ', '.join(set(agent.mode for agent in self.agents))
@@ -53,7 +57,7 @@ class World(object):
             pos.y = max_y - pos.y
 
     def transform_point(self, point, pos, forward, side):
-        ''' Transform the give nsingle point, using the provided position,
+        ''' Transform the given single point, using the provided position,
             and direction (forward and side unit vectors), to object world space. '''
         # make a copy of the original point (so we don't trash it)
         wld_pt = point.copy()

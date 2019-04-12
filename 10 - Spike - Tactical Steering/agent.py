@@ -8,7 +8,7 @@ For class use only. Do not publically share or post this code without permission
 from vector2d import Vector2D
 from vector2d import Point2D
 from graphics import egi, KEY
-from math import sin, cos, radians
+from math import sin, cos, radians, sqrt
 from random import random, randrange, uniform
 from path import Path
 
@@ -21,6 +21,7 @@ AGENT_MODES = {
     KEY._6: 'pursuit',
     KEY._7: 'follow_path',
     KEY._8: 'wander',
+    KEY._9: 'hide'
 }
 
 class Agent(object):
@@ -46,14 +47,18 @@ class Agent(object):
         self.side = self.heading.perp()
         self.force = Vector2D()  # current steering force
         self.accel = Vector2D() # current acceleration due to force
+        self.radius = 1.0 * scale
+        self.hiding_spots = []
+        self.best_hiding_spot = Point2D()
 
         # force- and speed-limiting variables
         self.applying_friction = False
         self.max_force = 500.0
+        self.avoidance_range = 100.0
 
         # scaling variables
-        self.scaleScalar = scale
-        self.scaleVector = Vector2D(scale, scale)  # easy scaling of agent size
+        self.scale_scalar = scale
+        self.scale_vector = Vector2D(scale, scale)  # easy scaling of agent size
 
         # path variables
         self.path = Path()
@@ -61,11 +66,11 @@ class Agent(object):
         self.waypoint_threshold = 40.0
 
         # wander variables
-        self.wander_dist = 2.0 * self.scaleScalar
-        self.wander_radius = 1.0 * self.scaleScalar
-        self.wander_jitter = 10.0 * self.scaleScalar
+        self.wander_dist = 2.0 * self.scale_scalar
+        self.wander_radius = 1.0 * self.scale_scalar
+        self.wander_jitter = 10.0 * self.scale_scalar
         self.wander_target = Vector2D(1.0, 0)
-        self.bRadius = self.scaleScalar
+        self.b_radius = self.scale_scalar
         self.wander_while_fleeing = False
 
         # debug draw info?
@@ -82,10 +87,10 @@ class Agent(object):
         if model == "dart":
             self.mass = 1.0
             # limits?
-            self.max_speed = 30.0 * self.scaleScalar
+            self.max_speed = 30.0 * self.scale_scalar
             self.friction = 0.1
             # data for drawing this agent
-            self.color = 'ORANGE'
+            #self.color = 'ORANGE'
             self.vehicle_shape = [
                 Point2D(-1.0,  0.6),
                 Point2D( 1.0,  0.0),
@@ -94,10 +99,10 @@ class Agent(object):
         elif model == "block":
             self.mass = 1.5
             # limits?
-            self.max_speed = 22.0 * self.scaleScalar
+            self.max_speed = 22.0 * self.scale_scalar
             self.friction = 0.2
             # data for drawing this agent
-            self.color = 'RED'
+            #self.color = 'RED'
             self.vehicle_shape = [
                 Point2D(-1.0,  0.6),
                 Point2D( 1.0,  0.6),
@@ -107,10 +112,10 @@ class Agent(object):
         else:
             self.mass = 2.0
             # limits?
-            self.max_speed = 18.0 * self.scaleScalar
+            self.max_speed = 18.0 * self.scale_scalar
             self.friction = 0.3
             # data for drawing this agent
-            self.color = 'PURPLE'
+            #self.color = 'PURPLE'
             self.vehicle_shape = [
                 Point2D( 0.4,  1.0),
                 Point2D(-0.4,  1.0),
@@ -135,6 +140,8 @@ class Agent(object):
             force = self.arrive(self.world.target, 'normal')
         elif mode == 'arrive_fast':
             force = self.arrive(self.world.target, 'fast')
+        elif mode == 'hide':
+            force = self.hide(self.world.hunter, self.world.obstacles, delta)
         elif mode == 'flee':
             force = self.flee(self.world.target, delta)
         elif mode == 'pursuit':
@@ -151,6 +158,7 @@ class Agent(object):
     def update(self, delta):
         ''' update vehicle position and orientation '''
         force = self.calculate(delta)
+        #force += self.avoid_obstacles(self.world.obstacles)
         ## limit force
         force.truncate(self.max_force)
         # determine the new accelteration
@@ -176,19 +184,20 @@ class Agent(object):
         self.world.wrap_around(self.pos)
 
     def render(self, color=None):
-        # draw the path if it exists and the mode is follow
-        if self.mode == 'follow_path':
-            self.path.render()
+        # # draw the path if it exists and the mode is follow
+        # if self.mode == 'follow_path':
+        #     self.path.render()
         
-        # draw the ship according to its status if pursuing
-        elif self.world.agent_mode == 'pursuit':
-        	if self.mode == 'pursuit':
-        		egi.set_pen_color(name='RED')
-        	else:
-        		egi.set_pen_color(name='WHITE')
+        # # draw the ship according to its status if pursuing
+        # elif self.world.agent_mode == 'pursuit':
+        # 	if self.mode == 'pursuit':
+        # 		egi.set_pen_color(name='RED')
+        # 	else:
+        # 		egi.set_pen_color(name='WHITE')
         
         # draw wander info if wandering
-        elif self.mode == 'wander':
+        #el
+        if self.mode == 'wander':
             # calculate the centre of the wander circle in front of the agent
             wnd_pos = Vector2D(self.wander_dist, 0)
             wld_pos = self.world.transform_point(wnd_pos, self.pos, self.heading, self.side)
@@ -204,14 +213,34 @@ class Agent(object):
             egi.circle(wld_pos, 3)
 
         # draw the ship according to its default colour
-        else:
-        	egi.set_pen_color(name=self.color)
+        elif self.mode == 'hide':
+        	egi.orange_pen()
 
         egi.set_stroke(2)
-        pts = self.world.transform_points(self.vehicle_shape, self.pos, self.heading, self.side, self.scaleVector)
+        pts = self.world.transform_points(self.vehicle_shape, self.pos, self.heading, self.side, self.scale_vector)
         
         # draw it!
         egi.closed_shape(pts)
+
+        if self.best_hiding_spot:
+            egi.orange_pen()
+            egi.cross(self.best_hiding_spot, 10)
+
+        egi.red_pen()
+        for hiding_spot in self.hiding_spots:
+            if hiding_spot is not self.best_hiding_spot:
+                egi.cross(hiding_spot, 10)
+
+        # # draw obstacle avoidance box
+        # egi.red_pen()
+        # pts = [
+        #         Point2D(self.pos.x + self.detection_box_length(),  self.pos.y + self.radius),
+        #         Point2D(self.pos.x + self.detection_box_length(),  self.pos.y - self.radius),
+        #         Point2D(self.pos.x - self.radius,  self.pos.y - self.radius),
+        #         Point2D(self.pos.x - self.radius,  self.pos.y + self.radius)
+        #     ]
+        # #pts = self.world.transform_points(pts, self.pos, self.heading, self.side, self.scale_vector)
+        # egi.closed_shape(pts)
 
         # add some handy debug drawing info lines - force and velocity
         if self.show_info:
@@ -248,15 +277,60 @@ class Agent(object):
             return (desired_vel - self.vel)
         return Vector2D(0, 0)
 
+    #def avoid_obstacles(self, obstacles):
+
+        # attempted avoid obstacles code from the lecture notes. hasn't worked very well so far
+
+        # box_length = self.detection_box_length()
+        # # note (tag) the objects in range
+        # #tag_list = self.tag_objects_in_view_range(obstacles, box_length) #####?
+        # tag_list = []
+        # for obstacle in obstacles:
+        #     # if obstacle.pos within self.radius of self.y and obstacle.pos within box_length of self.x???
+        #     if obstacle.pos.y <= self.pos.y + self.radius and obstacle.pos.x <= self.pos.x + box_length:
+        #         tag_list.append(obstacle)
+
+        # closest_dist = float(99999999999999)
+        # closest_obst = None
+        # closest_pos = None
+
+        # for obstacle in tag_list:
+        #     local_pos = obstacle.pos#self.world.transform_point(obstacle.pos, self.pos, self.heading, self.side) #####?
+        #     if local_pos.x >= 0:
+        #         expanded_radius = obstacle.b_radius + self.b_radius
+        #         if abs(local_pos.y) < expanded_radius:
+        #             # line / circle intersection test, x = cx +/- sqrt(r**2 - cy**2) for y = 0
+        #             cx = local_pos.x
+        #             cy = local_pos.y
+        #             # only calc the sqrt part once (avoid repetition)
+        #             sqrt_part = sqrt(expanded_radius**2 - cy**2)
+        #             ip = cx - sqrt_part
+        #             if ip < closest_dist:
+        #                 closest_dist = ip
+        #                 closest_obst = obstacle
+        #                 closest_pos = obstacle.pos
+
+        # # calculate steering force (if required)
+        # force = Vector2D()
+        # if closest_obst:
+        #     # the closer, the stronger the force needed
+        #     multi = 1.0 + (box_length - closest_pos.x) / box_length
+        #     # lateral force as needed
+        #     force.y = (closest_obst.b_radius - closest_pos.y) * multi
+        #     # breaking force proportionate to closest obstacle
+        #     breaking_weight = 0.2
+        #     force.x = (closest_obst.b_radius - closest_pos.x) * breaking_weight
+
+        # # convert force back to world space
+        # return self.world.transform_point(force, self.pos, self.heading, self.side) #####?
+
     def flee(self, hunter_pos, delta):
         ''' move away from hunter position '''
-        panic_range = 100
-
-        if self.distance(hunter_pos) > panic_range:
+        if self.distance(hunter_pos) > self.avoidance_range:
             return self.wander(delta)
-
-        desired_vel = (self.pos - hunter_pos).normalise() * self.max_speed
-        return (desired_vel - self.vel)
+        else:
+            desired_vel = (self.pos - obstacle_pos).normalise() * self.max_speed
+            return (desired_vel - self.vel)
 
     def follow_path(self):
         if self.path.current_pt() is self.path.end_pt():
@@ -270,6 +344,28 @@ class Agent(object):
                 return self.arrive(self.path.current_pt(), "slow")
             else:
                 return self.seek(self.path.current_pt())
+
+    def hide(self, hunter, obstacles, delta):
+        dist_to_closest = 999999999999999999999999.0
+        best_hiding_spot = None
+        self.hiding_spots = []
+        self.best_hiding_spot = None
+
+        # check for possible hiding spots
+        for obstacle in obstacles:
+            hiding_spot = self.get_hiding_position(hunter, obstacle)
+            self.hiding_spots.append(hiding_spot)
+            hiding_dist = self.distance(obstacle.pos)
+            if hiding_dist < dist_to_closest:
+                dist_to_closest = hiding_dist
+                best_hiding_spot = hiding_spot
+
+        if best_hiding_spot:
+            self.best_hiding_spot = best_hiding_spot
+            return self.arrive(best_hiding_spot, 'fast')
+
+        # default: run away
+        return self.flee(hunter.pos, delta)
 
     def pursuit(self, evader):
     	''' this behaviour predicts where an agent will be in time T and seeks
@@ -321,10 +417,27 @@ class Agent(object):
         friction = accel_to_future_pos * -self.friction
         return friction
 
+    # def detection_box_length(self):
+    #     # calculate a detection box length proportionate to the current speed
+    #     min_box_length = 10.0
+    #     return min_box_length + (self.speed() / self.max_speed) * min_box_length
+
     def distance(self, target_pos):
         to_target = target_pos - self.pos
         dist = to_target.length()
         return dist
+
+    def get_hiding_position(self, hunter, obstacle):
+        # set the distance between the obstacle and the hiding point
+        dist_from_boundary = 30.0 # system setting
+        dist_away = obstacle.radius + dist_from_boundary
+
+        # get the normal vector from the hunter to the hiding point
+        to_obstacle = obstacle.pos - hunter.pos
+        to_obstacle.normalise()
+
+        # scale size past the obstacle to the hiding location
+        return (to_obstacle * dist_away) + obstacle.pos
 
     def randomise_path(self):
         num_pts = 4

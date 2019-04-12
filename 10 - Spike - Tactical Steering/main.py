@@ -25,68 +25,75 @@ from pyglet.gl import *
 from vector2d import Vector2D
 from world import World
 from agent import Agent, AGENT_MODES  # Agent with seek, arrive, flee and pursuit
+from obstacle import Obstacle
 
 NUM_KEYS = {
-	KEY._0: 0,
-	KEY._1: 1,
-	KEY._2: 2,
-	KEY._3: 3,
-	KEY._4: 4,
-	KEY._5: 5,
-	KEY._6: 6,
-	KEY._7: 7,
-	KEY._8: 8,
-	KEY._9: 9
+    KEY._0: 0,
+    KEY._1: 1,
+    KEY._2: 2,
+    KEY._3: 3,
+    KEY._4: 4,
+    KEY._5: 5,
+    KEY._6: 6,
+    KEY._7: 7,
+    KEY._8: 8,
+    KEY._9: 9
 }
 
 
-def on_mouse_press(x, y, button, modifiers):
-    if button == 1:  # left
-        world.target = Vector2D(x, y)
+# def on_mouse_press(x, y, button, modifiers):
+#     if button == 1:  # left
+#         world.target = Vector2D(x, y)
 
 
 def on_key_press(symbol, modifiers):
+    # Pause / unpause the game
     if symbol == KEY.P:
         world.paused = not world.paused
-
-    ## LAB 09 STEP 1: Reset all paths to new random ones
-    # ...
-    
     # Toggle debug force line info on the agent
     elif symbol == KEY.I:
         for agent in world.agents:
             agent.show_info = not agent.show_info
+    # toggle friction on and off
     elif symbol == KEY.F:
-    	for agent in world.agents:
-    		agent.applying_friction = not agent.applying_friction
+        for agent in world.agents:
+            agent.applying_friction = not agent.applying_friction
+    # randomise the paths of the agents
     elif symbol == KEY.R:
-    	for agent in world.agents:
-    		agent.randomise_path()
-    elif symbol == KEY.A:
-    	world.new_agents = True
-    	return
-    elif world.new_agents and symbol in NUM_KEYS:
-    	loop = NUM_KEYS[symbol]
+        for agent in world.agents:
+            agent.randomise_path()
+    # randomise the positions of the obstacles in the current world space
+    elif symbol == KEY.O:
+        for obstacle in world.obstacles:
+            obstacle.randomise_position()
+    # indicate that you want to create new agents
+    # elif symbol == KEY.A:
+    #     world.new_agents = True
+    #     return
+    # spawning new agents
+    # elif world.new_agents and symbol in NUM_KEYS:
+    #     loop = NUM_KEYS[symbol]
 
-    	while loop > 0:
-    		world.agents.append(Agent(world=world, mode=world.agent_mode))
-    		loop -= 1
-    elif symbol in AGENT_MODES:
-    	mode = AGENT_MODES[symbol]
+    #     while loop > 0:
+    #         world.agents.append(Agent(world=world, mode=world.agent_mode))
+    #         loop -= 1
+    # apply new movement behaviour
+    # elif symbol in AGENT_MODES:
+    #     mode = AGENT_MODES[symbol]
 
-    	if mode == 'pursuit' and len(world.agents) == 1:
-    		return
+    #     if mode == 'pursuit' and len(world.agents) == 1:
+    #         return
 
-    	world.agent_mode = mode
+    #     world.agent_mode = mode
 
-    	for agent in world.agents:
-    		agent.mode = mode
+    #     for agent in world.agents:
+    #         agent.mode = mode
 
-    	if mode == 'pursuit':
-    		world.agents[0].mode = 'flee'
-    		world.evader = world.agents[0]
+    #     if mode == 'pursuit':
+    #         world.agents[0].mode = 'flee'
+    #         world.evader = world.agents[0]
 
-    world.new_agents = False
+    # world.new_agents = False
 
 
 def on_resize(cx, cy):
@@ -106,14 +113,20 @@ if __name__ == '__main__':
     fps_display = clock.ClockDisplay()
     # register key and mouse event handlers
     win.push_handlers(on_key_press)
-    win.push_handlers(on_mouse_press)
+    #win.push_handlers(on_mouse_press)
     win.push_handlers(on_resize)
 
     # create a world for agents
     world = World(500, 500)
-    # add one agent
-    world.agents.append(Agent(world=world, mode=world.agent_mode))
-    world.evader = world.agents[0]
+    # add wandering hunter agent
+    world.agents.append(Agent(world=world, mode='wander'))
+    world.hunter = world.agents[0]
+    # add hiding evader agent
+    world.agents.append(Agent(world=world, mode='hide'))
+    world.evader = world.agents[1]
+    # add obstacles
+    for n in range(6):
+        world.obstacles.append(Obstacle(world=world))
     # unpause the world ready for movement
     world.paused = False
 
@@ -127,5 +140,3 @@ if __name__ == '__main__':
         fps_display.draw()
         # swap the double buffer
         win.flip()
-
-
