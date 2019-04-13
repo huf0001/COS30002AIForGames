@@ -59,9 +59,9 @@ def on_key_press(symbol, modifiers):
         for agent in world.agents:
             agent.applying_friction = not agent.applying_friction
     # randomise the paths of the agents
-    elif symbol == KEY.R:
-        for agent in world.agents:
-            agent.randomise_path()
+    # elif symbol == KEY.R:
+    #     for agent in world.agents:
+    #         agent.randomise_path()
     # randomise the positions of the obstacles in the current world space
     elif symbol == KEY.O:
         for obstacle in world.obstacles:
@@ -100,6 +100,9 @@ def on_resize(cx, cy):
     world.cx = cx
     world.cy = cy
 
+    for obstacle in world.obstacles:
+        obstacle.check_position_valid()
+
 
 if __name__ == '__main__':
 
@@ -117,12 +120,12 @@ if __name__ == '__main__':
     win.push_handlers(on_resize)
 
     # create a world for agents
-    world = World(500, 500)
+    world = World(1000, 1000)
     # add wandering hunter agent
-    world.agents.append(Agent(world=world, mode='wander'))
+    world.agents.append(Agent(world=world, mode='wander', speed_limiter=5))
     world.hunter = world.agents[0]
     # add hiding evader agent
-    world.agents.append(Agent(world=world, mode='hide'))
+    world.agents.append(Agent(world=world, mode='hide', speed_limiter=3))
     world.evader = world.agents[1]
     # add obstacles
     for n in range(6):
