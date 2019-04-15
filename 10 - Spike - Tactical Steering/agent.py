@@ -35,27 +35,27 @@ class Agent(object):
         'fast': 0.3
     }
 
-    def __init__(self, world=None, scale=30.0, mass=1.0, mode=None, speed_limiter=1):
+    def __init__(self, world=None, scale=30.0, mass=1.0, mode=None, speed_limiter=1, radius=30.0):
         # keep a reference to the world object
         self.world = world
         self.mode = mode
 
-        # where am i and where am i going? random
+        # what am I and where am I going?
         dir = radians(random()*360)
-        self.pos = Vector2D(randrange(world.cx), randrange(world.cy))
         self.vel = Vector2D()
         self.heading = Vector2D(sin(dir), cos(dir))
         self.side = self.heading.perp()
         self.force = Vector2D()  # current steering force
         self.accel = Vector2D() # current acceleration due to force
-        self.radius = 1.0 * scale
+        self.radius = radius
         self.hiding_spots = []
-        self.best_hiding_spot = HidingSpot()
+        self.best_hiding_spot = None
 
         # force- and speed-limiting variables
         self.applying_friction = False
         self.max_force = 500.0
         self.avoidance_range = 100.0
+        self.speed_limiter = speed_limiter
 
         # scaling variables
         self.scale_scalar = scale
@@ -79,9 +79,10 @@ class Agent(object):
         self.sensor_pos = Vector2D()
         self.obst_detected = False
         self.sensor_obst_detected = False
+        self.fov_markers = []
 
-        # fov marker
-        self.fov_marker = Vector2D(0, 0)
+        # where am i?
+        self.pos = self.get_random_valid_position(world.cx, world.cy, self.world.obstacles, self.world.agents)
 
         # debug draw info?
         self.show_info = False
@@ -155,7 +156,7 @@ class Agent(object):
         #     force = self.arrive(self.world.target, 'fast')
         # el
         if mode == 'hide':
-            force = self.hide(self.world.hunter, self.world.obstacles, delta)
+            force = self.hide(self.world.hunters, self.world.obstacles, self.world.hiding_spots.copy(), delta)
         # elif mode == 'flee':
         #     force = self.flee(self.world.target, delta)
         # elif mode == 'pursuit':
@@ -204,6 +205,7 @@ class Agent(object):
         	self.vel += self.apply_friction() * delta
         
         # update position
+        pos = self.pos
         self.pos += self.vel * delta
         
         # update heading is non-zero velocity (moving)
@@ -213,6 +215,17 @@ class Agent(object):
         
         # treat world as continuous space - wrap new position if needed
         self.world.wrap_around(self.pos)
+
+        if self.collided():
+            self.pos = pos
+
+            # update heading is non-zero velocity (moving)
+            if self.vel.lengthSq() > 0.00000001:
+                self.heading = self.vel.get_normalised()
+                self.side = self.heading.perp()
+            
+            # treat world as continuous space - wrap new position if needed
+            self.world.wrap_around(self.pos)
 
     def render(self, color=None):
         if self.show_avoidance:
@@ -261,8 +274,9 @@ class Agent(object):
             # calculate the end point of the hunter's line of sight in front of the hunter
             if True:
                 egi.set_pen_color(name='WHITE')
-                egi.cross(self.fov_marker, 10)
-                egi.line(pos1=self.pos, pos2=self.fov_marker)
+                egi.line(pos1=self.pos, pos2=self.fov_markers[0])
+                egi.line(pos1=self.pos, pos2=self.fov_markers[2])
+                egi.line(pos1=self.fov_markers[0], pos2=self.fov_markers[2])
 
             egi.red_pen()
 
@@ -272,18 +286,7 @@ class Agent(object):
 
         egi.set_stroke(2)
         pts = self.world.transform_points(self.vehicle_shape, self.pos, self.heading, self.side, self.scale_vector)
-        
-        # draw it!
         egi.closed_shape(pts)
-
-        if self.best_hiding_spot:
-            egi.orange_pen()
-            egi.cross(self.best_hiding_spot.pos, 10)
-
-        egi.red_pen()
-        for hiding_spot in self.hiding_spots:
-            if hiding_spot is not self.best_hiding_spot:
-                egi.cross(hiding_spot.pos, 10)
 
         # add some handy debug drawing info lines - force and velocity
         if self.show_info:
@@ -387,21 +390,24 @@ class Agent(object):
     #         else:
     #             return self.seek(self.path.current_pt())
 
-    def hide(self, hunter, obstacles, delta):
+    def hide(self, hunters, obstacles, hiding_spots, delta):
         self.best_hiding_spot = None
-        self.hiding_spots = []
 
-        self.hiding_spots = self.get_hiding_spots(hunter, obstacles)
-
-        if len(self.hiding_spots) == 0:
-            # default: run away
-            return self.flee(hunter.pos, delta)
+        if len(hiding_spots) == 0:
+            # default: panic and run away from a random hunter
+            if len(hunters) == 0:
+                print("no hunters")
+                return self.wander(delta)
+            elif len(hunters) == 1:
+                return self.flee(hunters[0].pos, delta)
+            else:            
+                return self.flee(hunters[randrange(0, len(hunters) - 1)].pos, delta)
         # if only one hiding spot, just pick that spot 
-        elif len(self.hiding_spots) == 1:            
-            self.best_hiding_spot = self.hiding_spots[0]
+        elif len(hiding_spots) == 1:            
+            self.best_hiding_spot = hiding_spots[0]
         else:  
             # go to best hiding spot
-            self.best_hiding_spot = self.get_best_hiding_spot(self.hiding_spots, hunter)
+            self.best_hiding_spot = self.get_best_hiding_spot(hiding_spots, hunters)
             
         return self.arrive(self.best_hiding_spot.pos, 'fast')        
 
@@ -455,35 +461,71 @@ class Agent(object):
         friction = accel_to_future_pos * -self.friction
         return friction
 
+    def collided(self):
+        collided = False
+
+        for obstacle in self.world.obstacles:
+            if self.distance(obstacle.pos) < self.radius + obstacle.radius:
+                collided = True
+
+        if not collided:
+            for agent in self.world.agents:
+                if agent is not self and self.distance(agent.pos) < self.radius + agent.radius:
+                    collided = True
+
+        return collided
+
+    def destroy(self):
+        self.world.agents.remove(self)
+
+        if self.mode is 'hide':
+            self.world.evaders.remove(self)
+        else:
+            self.world.hunters.remove(self)
+
+        del self
+
     def distance(self, target_pos):
         to_target = target_pos - self.pos
         dist = to_target.length()
         return dist
 
-    def get_best_hiding_spot(self, hiding_spots, hunter):
+    def get_best_hiding_spot(self, spots, hunters):
         # sort and / or rank the hiding spots
-        spots = hiding_spots.copy()
         prioritise_close = False
         prioritise_far_from_hunter = False
+
+        invalid_spots = []
+
+        for spot in spots:
+            if not spot.valid:
+                invalid_spots.append(spot)
+
+        for spot in invalid_spots:
+            spots.remove(spot)
 
         if prioritise_close:
             # get closest
             spots.sort(key=lambda x: x.dist_to_evader)
         elif prioritise_far_from_hunter:
             # get furthest from hunter
-            spots.sort(key=lambda x: x.dist_to_hunter, reverse=True)
+            spots.sort(key=lambda x: x.avg_dist_to_hunter, reverse=True)
         else:
             # sort and increment spots' rank by closeness, lowest (index = 0) to highest (index = len - 1)
+            for spot in spots:
+                spot.dist_to_evader = self.distance(spot.pos)
+
             spots.sort(key=lambda x: x.dist_to_evader)
             for i in range(len(spots) - 1):
                 spots[i].rank += i
 
             # sort and increment spots' rank by distance from hunter, highest (index = 0) to lowest (index = len - 1)
-            spots.sort(key=lambda x: x.dist_to_hunter, reverse=True)
+            spots.sort(key=lambda x: x.avg_dist_to_hunter, reverse=True)
             for i in range(len(spots) - 1):
                 spots[i].rank += i
             
             # account for the number of collisions that have been experienced going to each spot
+            # got agent stuck in a loop where it kept changing the hiding spot it was going to every frame or two
             # if False:    
             #     for spot in spots:
             #         spot.rank += spot.collisions
@@ -491,52 +533,33 @@ class Agent(object):
             # increment spots' rank if moving to them would require crossing the hunter's line of sight
             if True:
                 for spot in spots:
-                    if self.intersect(self.pos, spot.pos, hunter.pos, hunter.fov_marker):
-                        spot.rank += 999999999
+                    for hunter in hunters:
+                        for marker in hunter.fov_markers:
+                            if self.intersect(self.pos, spot.pos, hunter.pos, marker):
+                                spot.rank += 999999999
 
             # sort spots by rank, lowest (index = 0) to highest (index = len - 1) 
             spots.sort(key=lambda x: x.rank)
 
         return spots[0]
 
-    def get_hiding_spot_position(self, hunter, obstacle):
-        # set the distance between the obstacle and the hiding point
-        dist_from_boundary = self.avoid_radius + 5.0
-        dist_away = obstacle.radius + dist_from_boundary
+    def get_random_valid_position(self, max_x, max_y, obstacles, agents):
+        valid = False
+        pos = Vector2D()
 
-        # get the normal vector from the hunter to the hiding point
-        to_obstacle = obstacle.pos - hunter.pos
-        to_obstacle.normalise()
+        while not valid:
+            valid = True
+            pos = Vector2D(randrange(max_x), randrange(max_y))
+            
+            for obstacle in obstacles:
+                if obstacle.distance(pos) <= self.avoid_radius + obstacle.radius:
+                    valid = False
 
-        # scale size past the obstacle to the hiding location
-        return (to_obstacle * dist_away) + obstacle.pos
+            for agent in agents:
+                if agent is not self and agent.distance(pos) <= self.avoid_radius + agent.avoid_radius:
+                    valid = False
 
-    def get_hiding_spots(self, hunter, obstacles):
-        hiding_spots = []
-
-        # check for possible hiding spots
-        for obstacle in obstacles:
-            spot = obstacle.hiding_spot
-            spot.pos = self.get_hiding_spot_position(hunter, obstacle)
-            spot.valid = True
-            spot.rank = 0
-
-            # check if spot is in the bounds of the screen
-            if spot.pos.x < 0 or spot.pos.x > self.world.cx or spot.pos.y < 0 or spot.pos.y > self.world.cy:
-                spot.valid = False
-            else:
-                # check if spot is inside the bounds of an object
-                for o in obstacles:
-                    if spot.distance(o.pos) < o.radius:
-                        spot.valid = False
-
-            if spot.valid:  
-                # update spot data                  
-                spot.dist_to_evader = spot.distance(self.pos)
-                spot.dist_to_hunter = spot.distance(hunter.pos)
-                hiding_spots.append(spot)
-
-        return hiding_spots
+        return pos
       
     # The main function that returns true if line segment 'p1q1' 
     # and 'p2q2' intersect. 
@@ -602,16 +625,28 @@ class Agent(object):
     #     margin = min(cx, cy) * (1/6)    #use this for padding in the next line
     #     self.path.create_random_path(num_pts, margin, margin, cx - margin, cy - margin)
 
+    # def replace(self):
+    #     agent = Agent(world=self.world, mode=self.mode, speed_limiter=self.speed_limiter)
+
+    #     if agent.mode == 'hide':
+    #         self.world.agents.append(agent)
+    #         self.world.evaders.append(agent)
+    #     else:
+    #         self.world.agents.insert(0, agent)
+    #         self.world.hunter = agent
+
+    #     del self
+
     def speed(self):
         return self.vel.length()
 
     def update_fov(self, obstacles):
         crossed_obstacle = False
         max_fov_length = self.avoid_radius * 10
-
         fov_length = self.radius
         fovm = Vector2D()
         fov_marker = Vector2D()
+        markers = []
 
         while not crossed_obstacle and fov_length < max_fov_length: 
             fovm = Vector2D(fov_length, 0)
@@ -629,8 +664,11 @@ class Agent(object):
 
         fov_length = min(fov_length, max_fov_length)
         fovm = Vector2D(fov_length, 0)
-        fov_marker = self.world.transform_point(fovm, self.pos, self.heading, self.side) 
-        self.fov_marker = fov_marker
-
-        # create flanking fov markers, include them in calculations about fov
+        offset = 2 * self.scale_scalar
+        m_left = Vector2D(fov_length, -offset)
+        m_right = Vector2D(fov_length, offset)
+        markers.append(self.world.transform_point(m_left, self.pos, self.heading, self.side))
+        markers.append(self.world.transform_point(fovm, self.pos, self.heading, self.side))
+        markers.append(self.world.transform_point(m_right, self.pos, self.heading, self.side))
+        self.fov_markers = markers
 

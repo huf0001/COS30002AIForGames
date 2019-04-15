@@ -15,16 +15,23 @@ class World(object):
         self.cx = cx
         self.cy = cy
         #self.target = Vector2D(cx / 2, cy / 2)
-        self.evader = None
+        self.evaders = []
         self.agents = []
         self.obstacles = []
         self.paused = True
         self.showinfo = True
         self.new_agents = False
         self.agent_mode = 'seek'
+        self.hunters = []
+        self.hiding_spots = []
+        self.agent_scale = 30.0
+        self.agent_radius = 1.0 * self.agent_scale
+        self.agent_avoid_radius = 2 * self.agent_radius
 
     def update(self, delta):
         if not self.paused:
+            self.hiding_spots = self.get_hiding_spots(self.hunters, self.obstacles)
+
             for agent in self.agents:
                 agent.update(delta)
 
@@ -35,6 +42,9 @@ class World(object):
         for obstacle in self.obstacles:
             obstacle.render()
 
+        for hiding_spot in self.hiding_spots:
+            hiding_spot.render()
+
         # if self.target:
         #     egi.red_pen()
         #     egi.cross(self.target, 10)
@@ -43,6 +53,48 @@ class World(object):
             infotext = ', '.join(set(agent.mode for agent in self.agents))
             egi.white_pen()
             egi.text_at_pos(0, 0, infotext)
+
+    def get_hiding_spots(self, hunters, obstacles):
+        hiding_spots = []
+
+        # check for possible hiding spots
+        for hunter in hunters:
+            for obstacle in obstacles:
+                spot = obstacle.hiding_spot
+                spot.pos = self.get_hiding_spot_position(hunter, obstacle)
+                spot.valid = True
+                spot.rank = 0
+                total = 0
+
+                # check if spot is in the bounds of the screen
+                if spot.pos.x < 0 or spot.pos.x > self.cx or spot.pos.y < 0 or spot.pos.y > self.cy:
+                    spot.valid = False
+                else:
+                    # check if spot is inside the bounds of an object
+                    for o in obstacles:
+                        if spot.distance(o.pos) < o.radius:
+                            spot.valid = False
+ 
+                # update spot data                                      
+                for hunter in hunters:
+                    total += spot.distance(hunter.pos)
+
+                spot.avg_dist_to_hunter = total / len(hunters)
+                hiding_spots.append(spot)
+
+        return hiding_spots
+
+    def get_hiding_spot_position(self, hunter, obstacle):
+        # set the distance between the obstacle and the hiding point
+        dist_from_boundary = self.agent_avoid_radius + 5.0
+        dist_away = obstacle.radius + dist_from_boundary
+
+        # get the normal vector from the hunter to the hiding point
+        to_obstacle = obstacle.pos - hunter.pos
+        to_obstacle.normalise()
+
+        # scale size past the obstacle to the hiding location
+        return (to_obstacle * dist_away) + obstacle.pos
 
     def wrap_around(self, pos):
         ''' Treat world as a toroidal space. Updates parameter object pos '''

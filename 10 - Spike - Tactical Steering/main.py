@@ -47,27 +47,8 @@ NUM_KEYS = {
 
 
 def on_key_press(symbol, modifiers):
-    # Pause / unpause the game
-    if symbol == KEY.P:
-        world.paused = not world.paused
-    # Toggle debug force line info on the agent
-    elif symbol == KEY.I:
-        for agent in world.agents:
-            agent.show_info = not agent.show_info
-    # toggle friction on and off
-    elif symbol == KEY.F:
-        for agent in world.agents:
-            agent.applying_friction = not agent.applying_friction
-    # randomise the paths of the agents
-    # elif symbol == KEY.R:
-    #     for agent in world.agents:
-    #         agent.randomise_path()
-    # randomise the positions of the obstacles in the current world space
-    elif symbol == KEY.O:
-        for obstacle in world.obstacles:
-            obstacle.randomise_position()
     # indicate that you want to create new agents
-    # elif symbol == KEY.A:
+    # if symbol == KEY.A:
     #     world.new_agents = True
     #     return
     # spawning new agents
@@ -93,6 +74,35 @@ def on_key_press(symbol, modifiers):
     #         world.agents[0].mode = 'flee'
     #         world.evader = world.agents[0]
 
+    # generate new evading agents   #el
+    if symbol == KEY.E:
+        world.agents.append(Agent(world=world, scale=world.agent_scale, mode='hide', speed_limiter=3, radius=world.agent_radius))
+        world.evaders.append(world.agents[len(world.agents) - 1])
+    # toggle friction on and off
+    elif symbol == KEY.F:
+        for agent in world.agents:
+            agent.applying_friction = not agent.applying_friction
+    # add wandering hunter agent
+    elif symbol == KEY.H:        
+        world.agents.insert(0, Agent(world=world, scale=world.agent_scale, mode='wander', speed_limiter=5, radius=world.agent_radius))
+        world.hunters.append(world.agents[0])
+    # Toggle debug force line info on the agent
+    elif symbol == KEY.I:
+        for agent in world.agents:
+            agent.show_info = not agent.show_info
+    # randomise the positions of the obstacles
+    elif symbol == KEY.O:
+        for obstacle in world.obstacles:
+            obstacle.randomise_position()
+    # Pause / unpause the game
+    elif symbol == KEY.P:
+        world.paused = not world.paused
+    # randomise the paths of the agents
+    # elif symbol == KEY.R:
+    #     for agent in world.agents:
+    #         agent.randomise_path()
+    # randomise the positions of the obstacles in the current world space
+
     # world.new_agents = False
 
 
@@ -101,7 +111,7 @@ def on_resize(cx, cy):
     world.cy = cy
 
     for obstacle in world.obstacles:
-        obstacle.check_position_valid()
+        obstacle.randomise_position()
 
 
 if __name__ == '__main__':
@@ -120,16 +130,11 @@ if __name__ == '__main__':
     win.push_handlers(on_resize)
 
     # create a world for agents
-    world = World(1000, 1000)
-    # add wandering hunter agent
-    world.agents.append(Agent(world=world, mode='wander', speed_limiter=5))
-    world.hunter = world.agents[0]
-    # add hiding evader agent
-    world.agents.append(Agent(world=world, mode='hide', speed_limiter=3))
-    world.evader = world.agents[1]
+    world = World(2000, 1000)
     # add obstacles
     for n in range(6):
         world.obstacles.append(Obstacle(world=world))
+    
     # unpause the world ready for movement
     world.paused = False
 

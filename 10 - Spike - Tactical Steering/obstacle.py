@@ -22,11 +22,8 @@ class Obstacle(object):
         self.scale_scalar = scale
         #self.scale_vector = Vector2D(scale, scale)  # easy scaling of agent size
 
-        # where am i? random
-        self.pos = Vector2D(randrange(self.world.cx), randrange(self.world.cy))
         #self.b_radius = self.scale_scalar
-
-        self.hiding_spot = HidingSpot()
+        self.hiding_spot = HidingSpot(self.world)
         self.valid_hiding_spot = True
 
         OBSTACLE_SIZE = [
@@ -50,6 +47,9 @@ class Obstacle(object):
             self.color = 'PURPLE'
             self.radius = 3 * self.scale_scalar
 
+        # where am i? random
+        self.pos = self.get_random_valid_position(self.world.cx, self.world.cy, self.world.obstacles, self.world.agents)
+
     # The central logic of the Obstacle class ------------------------------------------------
 
     def check_position_valid(self):
@@ -61,8 +61,26 @@ class Obstacle(object):
         dist = to_target.length()
         return dist
 
+    def get_random_valid_position(self, max_x, max_y, obstacles, agents):
+        valid = False
+        pos = Vector2D()
+
+        while not valid:
+            valid = True
+            pos = Vector2D(randrange(max_x), randrange(max_y))
+            
+            for obstacle in obstacles:
+                if obstacle is not self and obstacle.distance(pos) <= obstacle.radius * 1.5:
+                    valid = False
+
+            for agent in agents:
+                if agent.distance(pos) <= self.radius + agent.avoid_radius:
+                    valid = False
+
+        return pos
+
     def randomise_position(self):
-        self.pos = Vector2D(randrange(self.world.cx), randrange(self.world.cy))
+        self.pos = self.get_random_valid_position(self.world.cx, self.world.cy, self.world.obstacles, self.world.agents)
         self.hiding_spot.collisions = 0
 
     def render(self, color=None):
