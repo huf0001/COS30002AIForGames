@@ -90,13 +90,16 @@ def on_key_press(symbol, modifiers):
     elif symbol == KEY.I:
         for agent in world.agents:
             agent.show_info = not agent.show_info
-    # randomise the positions of the obstacles
+    # create a new obstacle
     elif symbol == KEY.O:
-        for obstacle in world.obstacles:
-            obstacle.randomise_position()
+        world.obstacles.append(Obstacle(world=world))
     # Pause / unpause the game
     elif symbol == KEY.P:
         world.paused = not world.paused
+    # randomise the positions of the obstacles
+    elif symbol == KEY.R:
+        for obstacle in world.obstacles:
+            obstacle.randomise_position()
     # randomise the paths of the agents
     # elif symbol == KEY.R:
     #     for agent in world.agents:
