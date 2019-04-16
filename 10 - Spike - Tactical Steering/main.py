@@ -84,7 +84,7 @@ def on_key_press(symbol, modifiers):
             agent.applying_friction = not agent.applying_friction
     # add wandering hunter agent
     elif symbol == KEY.H:        
-        world.agents.insert(0, Agent(world=world, scale=world.agent_scale, mode='wander', speed_limiter=5, radius=world.agent_radius))
+        world.agents.insert(0, Agent(world=world, scale=world.agent_scale, mode='hunt', speed_limiter=5, radius=world.agent_radius))
         world.hunters.append(world.agents[0])
     # Toggle debug force line info on the agent
     elif symbol == KEY.I:

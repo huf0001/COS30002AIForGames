@@ -30,7 +30,8 @@ class World(object):
 
     def update(self, delta):
         if not self.paused:
-            self.hiding_spots = self.get_hiding_spots(self.hunters, self.obstacles)
+            if len(self.hunters) > 0 and len(self.evaders) > 0:
+                self.hiding_spots = self.get_hiding_spots(self.hunters, self.obstacles)
 
             for agent in self.agents:
                 agent.update(delta)
@@ -42,9 +43,6 @@ class World(object):
         for obstacle in self.obstacles:
             obstacle.render()
 
-        for hiding_spot in self.hiding_spots:
-            hiding_spot.render()
-
         # if self.target:
         #     egi.red_pen()
         #     egi.cross(self.target, 10)
@@ -53,6 +51,19 @@ class World(object):
             infotext = ', '.join(set(agent.mode for agent in self.agents))
             egi.white_pen()
             egi.text_at_pos(0, 0, infotext)
+
+
+    def destroy(self, agent):
+        if agent in self.agents:
+            self.agents.remove(agent)
+
+        if agent in self.evaders:
+            self.evaders.remove(agent)
+        
+        if agent in self.hunters:
+            self.hunters.remove(agent)
+
+        del agent
 
     def get_hiding_spots(self, hunters, obstacles):
         hiding_spots = []

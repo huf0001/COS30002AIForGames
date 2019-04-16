@@ -24,7 +24,6 @@ class Obstacle(object):
 
         #self.b_radius = self.scale_scalar
         self.hiding_spot = HidingSpot(self.world)
-        self.valid_hiding_spot = True
 
         OBSTACLE_SIZE = [
             'small',
@@ -88,3 +87,5 @@ class Obstacle(object):
         egi.set_pen_color(name=self.color)
         egi.set_stroke(2)
         egi.circle(self.pos, self.radius)
+
+        self.hiding_spot.render()

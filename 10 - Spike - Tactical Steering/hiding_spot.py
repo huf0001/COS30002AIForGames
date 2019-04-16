@@ -21,6 +21,8 @@ class HidingSpot(object):
         self.avg_dist_to_hunter = 999999999
         self.dist_to_evader = 0
         self.world = world
+        self.best = False
+        self.valid = True
 
         # how good the hiding spot is; the lower the rank no. the better
         self.rank = 0.0
@@ -34,12 +36,12 @@ class HidingSpot(object):
         return dist
 
     def render(self):
-        if self.valid:
-            egi.red_pen()
-            
-            for evader in self.world.evaders:
-                if self is evader.best_hiding_spot:
-                    egi.orange_pen()
+        if self.valid:            
+            if self.best:
+                egi.orange_pen()
+                self.best = False
+            else:
+                egi.red_pen()
 
             egi.cross(self.pos, 10)
                     
