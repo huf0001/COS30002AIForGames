@@ -10,7 +10,6 @@ from vector2d import Point2D
 from graphics import egi, KEY
 from math import sin, cos, radians
 from random import random, randrange, uniform
-from hiding_spot import HidingSpot
 
 class Obstacle(object):
     # Obstacle Setup ---------------------------------------------------------------
@@ -21,9 +20,10 @@ class Obstacle(object):
         # scaling variables
         self.scale_scalar = scale
         #self.scale_vector = Vector2D(scale, scale)  # easy scaling of agent size
-
         #self.b_radius = self.scale_scalar
-        self.hiding_spot = HidingSpot(self.world)
+
+        # colour
+        self.color = 'WHITE'
 
         OBSTACLE_SIZE = [
             'small',
@@ -35,15 +35,12 @@ class Obstacle(object):
 
         if size == "small":
             # data for drawing this obstacle
-            self.color = 'ORANGE'
             self.radius = 1 * self.scale_scalar
         elif size == "medium":
             # data for drawing this obstacle
-            self.color = 'RED'
             self.radius = 2 * self.scale_scalar
         else:
             # data for drawing this obstacle
-            self.color = 'PURPLE'
             self.radius = 3 * self.scale_scalar
 
         # where am i? random
@@ -80,12 +77,9 @@ class Obstacle(object):
 
     def randomise_position(self):
         self.pos = self.get_random_valid_position(self.world.cx, self.world.cy, self.world.obstacles, self.world.agents)
-        self.hiding_spot.collisions = 0
 
     def render(self, color=None):
         # draw the obstacle according to its default colour
         egi.set_pen_color(name=self.color)
         egi.set_stroke(2)
         egi.circle(self.pos, self.radius)
-
-        self.hiding_spot.render()
