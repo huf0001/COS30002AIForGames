@@ -8,6 +8,7 @@ For class use only. Do not publically share or post this code without permission
 from vector2d import Vector2D
 from matrix33 import Matrix33
 from graphics import egi
+from point2d import Point2D
 
 
 class World(object):
@@ -32,15 +33,16 @@ class World(object):
         self.input_menu_open = False
         self.agent_info = False
         self.new_agents = False
+        self.selected_index = 0
+        self.selected_variable = 'speed'
+        self.change_values = False
+        self.value_step = 1
 
         # pause variable
         self.paused = True
 
     def update(self, delta):
         if not self.paused:
-            # if len(self.hunters) > 0 and len(self.evaders) > 0:
-            #     self.hiding_spots = self.get_hiding_spots(self.hunters, self.obstacles)
-
             for agent in self.agents:
                 agent.update(delta)
 
@@ -51,14 +53,81 @@ class World(object):
         for obstacle in self.obstacles:
             obstacle.render()
 
-        if self.show_values:
-            modes = 'Agent mode(s): ' + ', '.join(set(agent.mode for agent in self.agents))
+        egi.white_pen()
+        egi.text_at_pos(5, 5, 'Current Menu: ' + self.get_menu_text())
+        egi.text_at_pos(5, 20, 'Agent mode(s): ' + ', '.join(set(agent.mode for agent in self.agents)))
+
+        if len(self.prey) > 0:
+            if self.change_values:
+                egi.red_pen()
+                y_top = self.cy - (5 + (15 * self.selected_index))
+                y_bottom = self.cy - (20 + (15 * self.selected_index))
+
+                pts = [
+                        Point2D(5,      y_top),     # top left
+                        Point2D(400,    y_top),     # top right
+                        Point2D(400,    y_bottom),  # bottom right
+                        Point2D(5,      y_bottom)   # bottom left
+                    ]
+                egi.closed_shape(pts)
+
             egi.white_pen()
-            egi.text_at_pos(0, 0, modes)
+            egi.text_at_pos(10, self.cy - (5 + 15), 'Max Speed: ' + str(self.prey[0].max_speed))
+            egi.text_at_pos(10, self.cy - (5 + 30), 'Max Force: ' + str(self.prey[0].max_force))
+            egi.text_at_pos(10, self.cy - (5 + 45), 'Alignment Multiplier: ' + str(self.prey[0].alignment_multiplier))
+            egi.text_at_pos(10, self.cy - (5 + 60), 'Cohesion Multiplier: ' + str(self.prey[0].cohesion_multiplier))
+            egi.text_at_pos(10, self.cy - (5 + 75), 'Fleeing Multiplier: ' + str(self.prey[0].fleeing_multiplier))
+            egi.text_at_pos(10, self.cy - (5 + 90), 'Separation Multiplier: ' + str(self.prey[0].separation_multiplier))
+            egi.text_at_pos(10, self.cy - (5 + 105), 'Wander Multiplier: ' + str(self.prey[0].wander_multiplier))
+            egi.text_at_pos(10, self.cy - (5 + 135), 'Value Step: ' + str(self.value_step))
 
     def add_prey(self, prey):
         self.agents.append(prey)
         self.prey.append(prey)
+
+    def change_value(self, value, step, sign):
+        if value == 'speed':
+            for agent in self.prey:
+                agent.max_speed += step * sign
+
+                if agent.max_speed < 0:
+                    agent.max_speed = 0
+        elif value == 'force':
+            for agent in self.prey:
+                agent.max_force += step * sign
+
+                if agent.max_force < 0:
+                    agent.max_force = 0
+        elif value == 'alignment':
+            for agent in self.prey:
+                agent.alignment_multiplier += step * sign
+
+                if agent.alignment_multiplier < 0:
+                    agent.alignment_multiplier = 0
+        elif value == 'cohesion':
+            for agent in self.prey:
+                agent.cohesion_multiplier += step * sign
+
+                if agent.cohesion_multiplier < 0:
+                    agent.cohesion_multiplier = 0
+        elif value == 'fleeing':
+            for agent in self.prey:
+                agent.fleeing_multiplier += step * sign
+
+                if agent.fleeing_multiplier < 0:
+                    agent.fleeing_multiplier = 0
+        elif value == 'separation':
+            for agent in self.prey:
+                agent.separation_multiplier += step * sign
+
+                if agent.separation_multiplier < 0:
+                    agent.separation_multiplier = 0
+        elif value == 'wander':
+            for agent in self.prey:
+                agent.wander_multiplier += step * sign
+
+                if agent.wander_multiplier < 0:
+                    agent.wander_multiplier = 0
 
     def destroy(self, agent):
         if agent in self.agents:
@@ -72,59 +141,41 @@ class World(object):
 
         del agent
 
-    # def get_hiding_spots(self, hunters, obstacles):
-    #     hiding_spots = []
+    def get_menu_text(self):
+        if not self.input_menu_open:
+            return 'None. P: (Un)Pause Simulation. A: Prey Agent Menu. I: Info Display Menu. O: Obstacles Menu. V: Value Editing Menu.'
+        elif self.new_agents:
+            return 'New Prey Agents. [N]: Spawn [N] Prey Agents. Backspace: Exit Menu.'
+        elif self.agent_info:
+            return 'Toggle Display Info. A: Avoidance Boundary. F: Forces. V: Behaviour Values. W: Wander Circles. Backspace: Exit Menu.'
+        elif self.obstacle_input:
+            return 'Obstacles. O: Spawn New Obstacle. R: Randomise Obstacle Positions. Backspace: Exit Menu.'
+        elif self.change_values:
+            return 'Value Editing. Up/Down: Select Up/Down. Left/Right: Decrease/Increase Selected. Minus/Plus: Decrease/Increase Value Step. Backspace: Exit Menu.'
 
-    #     # check for possible hiding spots
-    #     for hunter in hunters:
-    #         for obstacle in obstacles:
-    #             spot = obstacle.hiding_spot
-    #             spot.pos = self.get_hiding_spot_position(hunter, obstacle)
-    #             spot.valid = True
-    #             spot.rank = 0
-    #             total = 0
+    def select_variable(self, change):
+        max_index = 6
+        self.selected_index += change
 
-    #             # check if spot is in the bounds of the screen
-    #             if spot.pos.x < 0 or spot.pos.x > self.cx or spot.pos.y < 0 or spot.pos.y > self.cy:
-    #                 spot.valid = False
-    #             else:
-    #                 # check if spot is inside the bounds of an object
-    #                 for o in obstacles:
-    #                     if spot.distance(o.pos) < o.radius:
-    #                         spot.valid = False
- 
-    #             # update spot data                                      
-    #             for hunter in hunters:
-    #                 total += spot.distance(hunter.pos)
+        if self.selected_index < 0:
+            self.selected_index = max_index
+        elif self.selected_index > max_index:
+            self.selected_index = 0
 
-    #             spot.avg_dist_to_hunter = total / len(hunters)
-    #             hiding_spots.append(spot)
-
-    #     return hiding_spots
-
-    # def get_hiding_spot_position(self, hunter, obstacle):
-    #     # set the distance between the obstacle and the hiding point
-    #     dist_from_boundary = self.agent_avoid_radius + 5.0
-    #     dist_away = obstacle.radius + dist_from_boundary
-
-    #     # get the normal vector from the hunter to the hiding point
-    #     to_obstacle = obstacle.pos - hunter.pos
-    #     to_obstacle.normalise()
-
-    #     # scale size past the obstacle to the hiding location
-    #     return (to_obstacle * dist_away) + obstacle.pos
-
-    def wrap_around(self, pos):
-        ''' Treat world as a toroidal space. Updates parameter object pos '''
-        max_x, max_y = self.cx, self.cy
-        if pos.x > max_x:
-            pos.x = pos.x - max_x
-        elif pos.x < 0:
-            pos.x = max_x - pos.x
-        if pos.y > max_y:
-            pos.y = pos.y - max_y
-        elif pos.y < 0:
-            pos.y = max_y - pos.y
+        if self.selected_index == 0:
+            self.selected_variable = 'speed'
+        elif self.selected_index == 1:
+            self.selected_variable = 'force'
+        elif self.selected_index == 2:
+            self.selected_variable = 'alignment'
+        elif self.selected_index == 3:
+            self.selected_variable = 'cohesion'
+        elif self.selected_index == 4:
+            self.selected_variable = 'fleeing'
+        elif self.selected_index == 5:
+            self.selected_variable = 'separation'
+        elif self.selected_index == 6:
+            self.selected_variable = 'wander'
 
     def transform_point(self, point, pos, forward, side):
         ''' Transform the given single point, using the provided position,
@@ -159,3 +210,15 @@ class World(object):
         mat.transform_vector2d_list(wld_pts)
         # done
         return wld_pts
+
+    def wrap_around(self, pos):
+        ''' Treat world as a toroidal space. Updates parameter object pos '''
+        max_x, max_y = self.cx, self.cy
+        if pos.x > max_x:
+            pos.x = pos.x - max_x
+        elif pos.x < 0:
+            pos.x = max_x - pos.x
+        if pos.y > max_y:
+            pos.y = pos.y - max_y
+        elif pos.y < 0:
+            pos.y = max_y - pos.y

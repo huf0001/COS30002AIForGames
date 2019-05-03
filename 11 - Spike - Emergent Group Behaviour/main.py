@@ -24,7 +24,7 @@ from pyglet.gl import *
 
 from vector2d import Vector2D
 from world import World
-from agent import Agent, AGENT_MODES  # Agent with seek, arrive, flee and pursuit
+from agent import Agent, AGENT_MODES
 from obstacle import Obstacle
 
 NUM_KEYS = {
@@ -41,50 +41,9 @@ NUM_KEYS = {
 }
 
 
-# def on_mouse_press(x, y, button, modifiers):
-#     if button == 1:  # left
-#         world.target = Vector2D(x, y)
-
-
 def on_key_press(symbol, modifiers):
-	# apply new movement behaviour
-	# elif symbol in AGENT_MODES:
-	#     mode = AGENT_MODES[symbol]
-
-	#     if mode == 'pursuit' and len(world.agents) == 1:
-	#         return
-
-	#     world.agent_mode = mode
-
-	#     for agent in world.agents:
-	#         agent.mode = mode
-
-	#     if mode == 'pursuit':
-	#         world.agents[0].mode = 'flee'
-	#         world.evader = world.agents[0]
-	# # generate new evading agents   #el
-	# elif symbol == KEY.E:
-	#     world.agents.append(Agent(world=world, scale=world.agent_scale, mode='hide', speed_limiter=3, radius=world.agent_radius))
-	#     world.evaders.append(world.agents[len(world.agents) - 1])
-	# toggle friction on and off
-	# elif symbol == KEY.F:
-	#     for agent in world.agents:
-	#         agent.applying_friction = not agent.applying_friction
-	# add wandering hunter agent
-	# elif symbol == KEY.H:        
-	#     world.agents.insert(0, Agent(world=world, scale=world.agent_scale, mode='hunt', speed_limiter=5, radius=world.agent_radius))
-	#     world.hunters.append(world.agents[0])
-	# Toggle debug force line info on the agent
-	# randomise the paths of the agents
-	# elif symbol == KEY.R:
-	#     for agent in world.agents:
-	#         agent.randomise_path()
-	# randomise the positions of the obstacles in the current world space
-
-	# indicate that you want to create new agents
-
-	# closing menus
-	if symbol == KEY.C:
+	# exiting menus
+	if symbol == KEY.BACKSPACE:
 	    world.input_menu_open = False
 	    world.new_agents = False
 	    world.agent_info = False
@@ -94,9 +53,23 @@ def on_key_press(symbol, modifiers):
 	    if world.new_agents and symbol in NUM_KEYS:
 	        loop = NUM_KEYS[symbol]
 
+	        if len(world.prey) > 0:
+	            update_values = True
+
 	        # spawn specified number of agents
 	        while loop > 0:
-	            world.add_prey(Agent(world=world, scale=10, radius=10, speed_limiter=2.5))
+	            prey = Agent(world=world, scale=10, radius=10, speed_limiter=2.5)
+
+	            if update_values:
+	                prey.max_speed = world.prey[0].max_speed
+	                prey.max_force = world.prey[0].max_force
+	                prey.alignment_multiplier = world.prey[0].alignment_multiplier
+	                prey.cohesion_multiplier = world.prey[0].cohesion_multiplier
+	                prey.fleeing_multiplier = world.prey[0].fleeing_multiplier
+	                prey.separation_multiplier = world.prey[0].separation_multiplier
+	                prey.wander_multiplier = world.prey[0].wander_multiplier
+
+	            world.add_prey(prey)
 	            loop -= 1
 	    # show info menu
 	    elif world.agent_info:
@@ -106,9 +79,6 @@ def on_key_press(symbol, modifiers):
 	        # agent vector info
 	        elif symbol == KEY.F:
 	            world.show_forces = not world.show_forces
-            # show agent values
-	        elif symbol == KEY.V:
-	            world.show_values = not world.show_values
 	        # agent wandering info
 	        elif symbol == KEY.W:
 	            world.show_wander = not world.show_wander
@@ -122,7 +92,18 @@ def on_key_press(symbol, modifiers):
 	            for obstacle in world.obstacles:
 	                obstacle.randomise_position()
 	    elif world.change_values:
-	        pass
+	        if symbol == KEY.LEFT:
+	            world.change_value(world.selected_variable, world.value_step, -1)
+	        elif symbol == KEY.RIGHT:
+	            world.change_value(world.selected_variable, world.value_step, 1)
+	        elif symbol == KEY.UP:
+	            world.select_variable(-1)
+	        elif symbol == KEY.DOWN:
+	            world.select_variable(+1)
+	        elif symbol == KEY.EQUAL:		# plus and equal share a key, and plus didn't register
+	            world.value_step *= 2
+	        elif symbol == KEY.MINUS:
+	            world.value_step /= 2
 	else:
 	    # open agent menu
 	    if symbol == KEY.A:
@@ -145,7 +126,6 @@ def on_key_press(symbol, modifiers):
 	    elif symbol == KEY.V:
 	        world.change_values = True
 	        world.input_menu_open = True
-	    
 
 
 def on_resize(cx, cy):
@@ -168,7 +148,6 @@ if __name__ == '__main__':
     fps_display = clock.ClockDisplay()
     # register key and mouse event handlers
     win.push_handlers(on_key_press)
-    #win.push_handlers(on_mouse_press)
     win.push_handlers(on_resize)
 
     # create a world for agents

@@ -47,22 +47,14 @@ class Agent(object):
         self.force = Vector2D()  # current steering force
         self.accel = Vector2D() # current acceleration due to force
         self.radius = radius
-        # self.hiding_spots = []
-        # self.best_hiding_spot = None
 
         # force- and speed-limiting variables
         self.max_force = 500.0
         self.avoidance_range = 100.0
-        self.speed_limiter = speed_limiter
 
         # scaling variables
         self.scale_scalar = scale
         self.scale_vector = Vector2D(self.scale_scalar, self.scale_scalar)  # easy scaling of agent size
-
-        # path variables
-        # self.path = Path()
-        # self.randomise_path()
-        # self.waypoint_threshold = 40.0
 
         # wander variables
         self.wander_dist = 2.0 * self.scale_scalar
@@ -80,11 +72,11 @@ class Agent(object):
         self.fov_markers = []
 
         # group behaviour force multipliers
-        self.alignment_multiplier = 1
-        self.cohesion_multiplier = 1
-        self.fleeing_multiplier = 1
-        self.separation_multiplier = 1
-        self.wander_multiplier = 1
+        self.alignment_multiplier = 1.0
+        self.cohesion_multiplier = 1.0
+        self.fleeing_multiplier = 1.0
+        self.separation_multiplier = 1.0
+        self.wander_multiplier = 1.0
 
         # where am i?
         self.pos = self.get_random_valid_position(world.cx, world.cy, self.world.obstacles, self.world.agents)
@@ -96,50 +88,16 @@ class Agent(object):
         else:
             self.colour = "GREEN"
 
-        AGENT_MODELS = [
-            'dart',
-            'block',
-            'ufo'
+        # to make max speed easier to display, going to restrict the model type to 'dart' 
+        self.mass = 1.0
+        # limits?
+        self.max_speed = 30 * self.scale_scalar / speed_limiter
+        # data for drawing this agent
+        self.vehicle_shape = [
+            Point2D(-1.0,  0.6),
+            Point2D( 1.0,  0.0),
+            Point2D(-1.0, -0.6)
         ]
-
-        model = AGENT_MODELS[randrange(0, 3)]
-
-        if model == "dart":
-            self.mass = 1.0
-            # limits?
-            self.max_speed = 30 * self.scale_scalar / speed_limiter
-            # data for drawing this agent
-            self.vehicle_shape = [
-                Point2D(-1.0,  0.6),
-                Point2D( 1.0,  0.0),
-                Point2D(-1.0, -0.6)
-            ]
-        elif model == "block":
-            self.mass = 1.5
-            # limits?
-            self.max_speed = 22.5 * self.scale_scalar / speed_limiter
-            # data for drawing this agent
-            self.vehicle_shape = [
-                Point2D(-1.0,  0.6),
-                Point2D( 1.0,  0.6),
-                Point2D( 1.0, -0.6),
-                Point2D(-1.0, -0.6)
-            ]
-        else:
-            self.mass = 2.0
-            # limits?
-            self.max_speed = 18 * self.scale_scalar / speed_limiter
-            # data for drawing this agent
-            self.vehicle_shape = [
-                Point2D( 0.4,  1.0),
-                Point2D(-0.4,  1.0),
-                Point2D(-1.0,  0.4),
-                Point2D(-1.0, -0.4),
-                Point2D(-0.4, -1.0),
-                Point2D( 0.4, -1.0),
-                Point2D( 1.0, -0.4),
-                Point2D( 1.0,  0.4)
-            ]
 
     # The central logic of the Agent class ------------------------------------------------
 
@@ -185,9 +143,6 @@ class Agent(object):
         self.obst_detected = False
         self.sensor_obst_detected = False
 
-        # if self.mode is not 'hide':
-        #     self.update_fov(self.world.obstacles, self.world.agents)
-
         force = self.avoid_obstacles(self.world.obstacles)
         force += self.avoid_agents(self.world.agents)
 
@@ -220,8 +175,6 @@ class Agent(object):
         # treat world as continuous space - wrap new position if needed
         self.world.wrap_around(self.pos)
 
-        #self.eat(self.world.evaders)
-
         if self.collided():
             self.pos = pos
             self.accel = accel
@@ -251,19 +204,6 @@ class Agent(object):
                 egi.set_pen_color(name='LIGHT_BLUE')
             egi.circle(self.sensor_pos, self.avoid_radius)
 
-        # # draw the path if it exists and the mode is follow
-        # if self.mode == 'follow_path':
-        #     self.path.render()
-        
-        # # draw the ship according to its status if pursuing
-        # elif self.world.agent_mode == 'pursuit':
-        #   if self.mode == 'pursuit':
-        #       egi.set_pen_color(name='RED')
-        #   else:
-        #       egi.set_pen_color(name='WHITE')
-        
-        #el
-
         # draw wander info if wandering
         if self.world.show_wander:
             # calculate the centre of the wander circle in front of the agent
@@ -279,19 +219,6 @@ class Agent(object):
             wnd_pos = (self.wander_target + Vector2D(self.wander_dist, 0))
             wld_pos = self.world.transform_point(wnd_pos, self.pos, self.heading, self.side)
             egi.circle(wld_pos, 3)
-
-        # draw the ship according to its default colour
-        # if self.mode == 'hide':
-        # 	egi.orange_pen()
-        # else:
-        #     # draw the detection range; at this point, only the hunter is gonna be wandering
-        #     # calculate the end point of the hunter's line of sight in front of the hunter
-        #     egi.set_pen_color(name='WHITE')
-        #     egi.line(pos1=self.pos, pos2=self.fov_markers[0])
-        #     egi.line(pos1=self.pos, pos2=self.fov_markers[2])
-        #     egi.line(pos1=self.fov_markers[0], pos2=self.fov_markers[2])
-        #     egi.red_pen()
-
 
         egi.set_pen_color(name=self.colour)
         egi.set_stroke(2)
@@ -361,10 +288,6 @@ class Agent(object):
             dist_to_self = self.distance(obstacle.pos)
             dist_to_avoid = (obstacle.pos - self.sensor_pos).length()
 
-            # if dist_to_avoid < self.avoid_radius + obstacle.radius or dist_to_self < self.avoid_radius + obstacle.radius:
-            #     if self.mode == 'hide':
-            #         self.best_hiding_spot.collisions += 1
-
             if dist_to_self < self.avoid_radius + obstacle.radius and dist_to_self < closest_dist:
                 closest_obst = obstacle
                 closest_dist = dist_to_self
@@ -392,96 +315,6 @@ class Agent(object):
             return self.wander(delta)
         else:
             return self.avoid(hunter_pos)
-
-    # def follow_path(self):
-    #     if self.path.current_pt() is self.path.end_pt():
-    #         return self.arrive(self.path.current_pt(), "slow")
-    #     else:
-    #         dist = self.distance(self.path.current_pt())
-    #         if self.distance(self.path.current_pt()) < self.waypoint_threshold:
-    #             self.path.inc_current_pt()
-            
-    #         if self.distance(self.path.current_pt()) < self.waypoint_threshold * 3:
-    #             return self.arrive(self.path.current_pt(), "slow")
-    #         else:
-    #             return self.seek(self.path.current_pt())
-
-    # def hunt(self, evaders, delta):
-    #     prioritise_visible = False
-    #     prioritise_close = False
-
-    #     hunting = []
-    #     visible = []
-    #     close = []
-    #     dist_multiplier = 1.25
-
-    #     for evader in evaders:
-    #         if self.distance(evader.pos) < (self.avoid_radius + evader.avoid_radius) * dist_multiplier:
-    #             close.append(evader)
-
-    #         for marker in self.fov_markers:
-    #             if evader.distance(marker) < evader.avoid_radius: #* dist_multiplier
-    #                 visible.append(evader)
-
-    #     hunting = list(set(visible) and set(close))
-
-    #     visible.sort(key=lambda x: x.distance(self.pos))
-
-    #     if len(hunting) > 0:
-    #         hunting.sort(key=lambda x: x.distance(self.pos))  
-    #         return self.pursuit(hunting[0])
-    #     elif prioritise_close and len(close) > 0:
-    #         if len(close) > 1:
-    #             close.sort(key=lambda x: x.distance(self.pos))
-    #         return self.pursuit(close[0])
-    #     elif prioritise_visible and len(visible) > 0:
-    #         if len(visible) > 1:
-    #             visible.sort(key=lambda x: x.distance(self.pos))
-    #         return self.pursuit(visible[0])
-    #     else:
-    #         hunting = close + visible
-    #         if len(hunting) == 0:
-    #             return self.wander(delta)
-    #         else:
-    #             if len(hunting) > 1:
-    #                 hunting.sort(key=lambda x: x.distance(self.pos))                  
-    #             return self.pursuit(hunting[0])
-
-    # def hide(self, hunters, obstacles, hiding_spots, delta):
-    #     self.best_hiding_spot = None
-        
-    #     # if only one hiding spot, just pick that spot 
-    #     if len(hiding_spots) == 1:            
-    #         self.best_hiding_spot = hiding_spots[0]
-    #     elif len(hiding_spots) > 1:  
-    #         # go to best hiding spot
-    #         self.best_hiding_spot = self.get_best_hiding_spot(hiding_spots, hunters)
-        
-    #     if self.best_hiding_spot is None:
-    #         # default: panic and run away from a random hunter
-    #         if len(hunters) == 0:
-    #             return self.wander(delta)
-    #         elif len(hunters) == 1:
-    #             return self.flee(hunters[0].pos, delta)
-    #         else:            
-    #             return self.flee(hunters[randrange(0, len(hunters) - 1)].pos, delta)
-    #     else:
-    #         self.best_hiding_spot.best = True    
-    #         return self.arrive(self.best_hiding_spot.pos, 'fast')          
-
-    # def pursuit(self, evader):
-    # 	''' this behaviour predicts where an agent will be in time T and seeks
-    # 		towards that point to intercept it. '''
-    # 	to_evader = evader.pos - self.pos
-    # 	relative_heading = self.heading.dot(evader.heading)
-
-    # 	if (to_evader.dot(self.heading) > 0) and (relative_heading < 0.95):
-    # 		return self.seek(evader.pos)
-
-    # 	future_time = to_evader.length()/(self.max_speed + evader.speed())
-    # 	#future_time += (1 - self.heading.dot(evader.vel)) * - self.side.length()
-    # 	future_pos = evader.pos + evader.vel * future_time
-    # 	return self.seek(future_pos)
 
     def seek(self, target_pos):
         ''' move towards target position '''
@@ -530,70 +363,6 @@ class Agent(object):
         to_target = target_pos - self.pos
         dist = to_target.length()
         return dist
-
-    # def eat(self, evaders):
-    #     to_eat = []
-
-    #     for evader in evaders:
-    #         if self.distance(evader.pos) < self.avoid_radius + evader.avoid_radius:
-    #             for marker in self.fov_markers:
-    #                 if evader.distance(marker) < evader.avoid_radius:
-    #                     to_eat.append(evader)
-
-    #     for evader in to_eat:
-    #         self.world.destroy(evader)
-
-    #     del to_eat
-
-    # def get_best_hiding_spot(self, spots, hunters):
-    #     # sort and / or rank the hiding spots
-    #     prioritise_close = False
-    #     prioritise_far_from_hunter = False
-
-    #     for spot in spots:
-    #         spot.rank = 0
-
-    #     if prioritise_close:
-    #         # get closest
-    #         for spot in spots:
-    #             spot.dist_to_evader = self.distance(spot.pos)                
-    #         spots.sort(key=lambda x: x.dist_to_evader)
-    #     elif prioritise_far_from_hunter:
-    #         # get furthest from hunter
-    #         spots.sort(key=lambda x: x.avg_dist_to_hunter, reverse=True)
-    #     else:
-    #         # sort and increment spots' rank by closeness, lowest (index = 0) to highest (index = len - 1)
-    #         for spot in spots:
-    #             spot.dist_to_evader = self.distance(spot.pos)
-    #         spots.sort(key=lambda x: x.dist_to_evader)
-    #         for i in range(len(spots) - 1):
-    #             spots[i].rank += i
-
-    #         # sort and increment spots' rank by distance from hunter, highest (index = 0) to lowest (index = len - 1)
-    #         spots.sort(key=lambda x: x.avg_dist_to_hunter, reverse=True)
-    #         for i in range(len(spots) - 1):
-    #             spots[i].rank += i
-            
-    #         # account for the number of collisions that have been experienced going to each spot
-    #         # got agent stuck in a loop where it kept changing the hiding spot it was going to every frame or two
-    #         # if False:    
-    #         #     for spot in spots:
-    #         #         spot.rank += spot.collisions
-
-    #         # increment spots' rank if moving to them would require crossing the hunter's line of sight
-    #         for spot in spots:
-    #             for hunter in hunters:
-    #                 if self.intersect(self.pos, spot.pos, hunter.pos, hunter.fov_markers[1]):
-    #                     spot.rank += 999999999
-
-    #         # sort spots by rank, lowest (index = 0) to highest (index = len - 1) 
-    #         spots.sort(key=lambda x: x.rank)
-
-    #     for i in range(0, len(spots) - 1):
-    #         if spots[i].valid:
-    #             return spots[i]
-
-    #     return None
 
     def get_random_valid_position(self, max_x, max_y, obstacles, agents):
         valid = False
@@ -670,61 +439,8 @@ class Agent(object):
       
         return False # Doesn't fall in any of the above cases 
 
-    # def randomise_path(self):
-    #     num_pts = 4
-    #     cx = self.world.cx
-    #     cy = self.world.cy
-    #     margin = min(cx, cy) * (1/6)    #use this for padding in the next line
-    #     self.path.create_random_path(num_pts, margin, margin, cx - margin, cy - margin)
-
-    # def replace(self):
-    #     agent = Agent(world=self.world, mode=self.mode, speed_limiter=self.speed_limiter)
-
-    #     if agent.mode == 'hide':
-    #         self.world.agents.append(agent)
-    #         self.world.evaders.append(agent)
-    #     else:
-    #         self.world.agents.insert(0, agent)
-    #         self.world.hunter = agent
-
-    #     del self
-
     def speed(self):
         return self.vel.length()
-
-    # def update_fov(self, obstacles, agents):
-    #     crossed_obj = False
-    #     max_fov_length = self.avoid_radius * 10
-    #     fov_length = self.radius
-    #     fovm = Vector2D()
-    #     fov_marker = Vector2D()
-    #     markers = []
-    #     objects = obstacles + agents
-    #     objects.remove(self)
-
-    #     while not crossed_obj and fov_length < max_fov_length: 
-    #         fovm = Vector2D(fov_length, 0)
-    #         fov_marker = self.world.transform_point(fovm, self.pos, self.heading, self.side) 
-            
-    #         for obj in objects:
-    #             if obj.distance(fov_marker) < obj.radius:
-    #                 crossed_obj = True
-    #                 overshoot = obj.radius - obj.distance(fov_marker)
-
-    #         if not crossed_obj:
-    #             fov_length += self.radius
-    #         else:
-    #             fov_length -= overshoot
-
-    #     fov_length = min(fov_length, max_fov_length)
-    #     fovm = Vector2D(fov_length, 0)
-    #     offset = 2 * self.scale_scalar
-    #     m_left = Vector2D(fov_length, -offset)
-    #     m_right = Vector2D(fov_length, offset)
-    #     markers.append(self.world.transform_point(m_left, self.pos, self.heading, self.side))
-    #     markers.append(self.world.transform_point(fovm, self.pos, self.heading, self.side))
-    #     markers.append(self.world.transform_point(m_right, self.pos, self.heading, self.side))
-    #     self.fov_markers = markers
 
     def update_multiplier(self, multiplier, change):
         # group behaviour force multipliers

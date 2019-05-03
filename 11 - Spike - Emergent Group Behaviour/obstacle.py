@@ -23,7 +23,7 @@ class Obstacle(object):
         #self.b_radius = self.scale_scalar
 
         # colour
-        self.color = 'WHITE'
+        self.color = 'GREY'
 
         OBSTACLE_SIZE = [
             'small',
