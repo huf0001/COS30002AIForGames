@@ -47,10 +47,7 @@ class Agent(object):
         self.force = Vector2D()  # current steering force
         self.accel = Vector2D() # current acceleration due to force
         self.radius = radius
-
-        # force- and speed-limiting variables
-        self.max_force = 500.0
-        self.avoidance_range = 100.0
+        self.flee_range = 250.0
 
         # scaling variables
         self.scale_scalar = scale
@@ -72,14 +69,39 @@ class Agent(object):
         self.fov_markers = []
         self.neighbours = []
 
-        # group behaviour force multipliers
-        self.alignment_multiplier = 1.0
-        self.cohesion_multiplier = 1.0
-        self.fleeing_multiplier = 1.0
-        self.obstacle_avoidance_multiplier = 2.0
-        self.separation_multiplier = 1.0
-        self.wander_multiplier = 1.0
-        self.weight_running_sum = False
+        if mode == 'predator':
+            # motion limits
+            self.max_speed = 6 * self.scale_scalar
+            self.max_force = 500.0
+
+            # group behaviour force multipliers
+            self.alignment_multiplier = 1.0
+            self.cohesion_multiplier = 1.0
+            self.fleeing_multiplier = 1.0
+            self.obstacle_avoidance_multiplier = 2.0
+            self.separation_multiplier = 2.0
+            self.wander_multiplier = 1.0
+
+            # behaviour states
+            self.separate_by_avoid = True
+            self.weight_running_sum = False
+        else:
+
+            # motion limits
+            self.max_speed = 6 * self.scale_scalar
+            self.max_force = 500.0
+
+            # group behaviour force multipliers
+            self.alignment_multiplier = 20.0
+            self.cohesion_multiplier = 2.0
+            self.fleeing_multiplier = 1.0
+            self.obstacle_avoidance_multiplier = 2.0
+            self.separation_multiplier = 1.75
+            self.wander_multiplier = 1.5
+
+            # behaviour states
+            self.separate_by_avoid = True
+            self.weight_running_sum = False
 
         # where am i?
         self.pos = self.get_random_valid_position(world.cx, world.cy, self.world.wall_margin + self.radius, self.world.obstacles, self.world.agents)
@@ -91,10 +113,6 @@ class Agent(object):
         else:
             self.colour = "GREEN"
 
-        # to make max speed easier to display, going to restrict the model type to 'dart' 
-        self.mass = 1.0
-        # limits?
-        self.max_speed = 6 * self.scale_scalar
         # data for drawing this agent
         self.vehicle_shape = [
             Point2D(-1.0,  0.6),
@@ -126,8 +144,8 @@ class Agent(object):
         force = self.avoid_obstacles(self.world.obstacles) * self.obstacle_avoidance_multiplier
         force += self.avoid_walls(self.world.walls) * self.obstacle_avoidance_multiplier
         
-        # if force.length() < self.max_force:
-        #     force += self.avoid_agents(self.world.agents)        
+        if self.separate_by_avoid:
+             force += self.avoid_agents(self.world.agents)        
         
         if force.length() == 0: #self.max_force:
             force = self.wander(delta)
@@ -140,15 +158,15 @@ class Agent(object):
         if self.add_force(force.length(), 1):
             force += self.avoid_obstacles(self.world.obstacles) * self.obstacle_avoidance_multiplier
             force += self.avoid_walls(self.world.walls) * self.obstacle_avoidance_multiplier
-        
-        # if self.add_force(force.length(), 1):
-        #     force += self.avoid_agents(self.world.agents)
+
+        if self.add_force(force.length(), self.separation_multiplier):
+            if self.separate_by_avoid:
+                force += self.avoid_agents(self.world.agents) * self.separation_multiplier
+            else:
+                force += self.separation() * self.separation_multiplier
 
         if self.add_force(force.length(), self.fleeing_multiplier):
             force += self.flee(self.world.predator.pos, delta) * self.fleeing_multiplier
-
-        if self.add_force(force.length(), self.separation_multiplier):
-            force += self.separation() * self.separation_multiplier
 
         if self.add_force(force.length(), self.cohesion_multiplier):
             force += self.cohesion() * self.cohesion_multiplier
@@ -293,18 +311,11 @@ class Agent(object):
         # velocity-based
         desired_vel = (self.pos - obj_pos).normalise() * self.max_speed
         return (desired_vel - self.vel)
-
-        # force-based
-        # max-speed
-        # desired_force = (self.pos - obj_pos).normalise() * self.max_speed
-        # proportionate force
-        # desired_force = (self.pos - obj_pos).normalise() * (self.pos - obj_pos).length()
-        # return (desired_force - self.force)
     
-    # def avoid_agents(self, agents):
-    #     agts = agents.copy()
-    #     agts.remove(self)
-    #     return self.avoid_obstacles(agts)  
+    def avoid_agents(self, agents):
+        agts = agents.copy()
+        agts.remove(self)
+        return self.avoid_obstacles(agts)  
 
     def avoid_obstacles(self, obstacles):
         sns_pos = Vector2D(min(self.avoid_radius * 2, self.vel.length()), 0) # factor in current speed
@@ -391,7 +402,7 @@ class Agent(object):
 
     def flee(self, hunter_pos, delta):
         ''' move away from hunter position '''
-        if self.distance(hunter_pos) > self.avoidance_range:
+        if self.distance(hunter_pos) > self.flee_range:
             return self.wander(delta)
         else:
             return self.avoid(hunter_pos)

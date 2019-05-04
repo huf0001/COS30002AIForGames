@@ -50,6 +50,31 @@ def on_key_press(symbol, modifiers):
 	    world.agent_info = False
 	    world.obstacle_input = False
 	    world.change_values = False
+	# shortcut key for spawning 10 new prey agents
+	elif symbol == KEY._0:
+	    loop = 10
+
+	    if len(world.prey) > 0:
+	        update_values = True
+	    else:
+	        update_values = False
+
+	    # spawn specified number of agents
+	    while loop > 0:
+	        prey = Agent(world=world, scale=10, radius=10)
+
+	        if update_values:
+	            prey.max_speed = world.prey[0].max_speed
+	            prey.max_force = world.prey[0].max_force
+	            prey.alignment_multiplier = world.prey[0].alignment_multiplier
+	            prey.cohesion_multiplier = world.prey[0].cohesion_multiplier
+	            prey.fleeing_multiplier = world.prey[0].fleeing_multiplier
+	            prey.obstacle_avoidance_multiplier = world.prey[0].obstacle_avoidance_multiplier
+	            prey.separation_multiplier = world.prey[0].separation_multiplier
+	            prey.wander_multiplier = world.prey[0].wander_multiplier
+
+	        world.add_prey(prey)
+	        loop -= 1
 	elif world.input_menu_open:
 	    # agent menu
 	    if world.new_agents and symbol in NUM_KEYS:

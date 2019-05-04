@@ -38,6 +38,7 @@ class World(object):
         self.input_menu_open = False
         self.agent_info = False
         self.new_agents = False
+        self.obstacle_input = False
         self.selected_index = 0
         self.selected_variable = 'speed'
         self.change_values = False
@@ -90,7 +91,8 @@ class World(object):
             egi.text_at_pos(10, self.cy - (5 + 90), 'Obstacle Avoidance Multiplier: ' + str(self.prey[0].obstacle_avoidance_multiplier))
             egi.text_at_pos(10, self.cy - (5 + 105), 'Separation Multiplier: ' + str(self.prey[0].separation_multiplier))
             egi.text_at_pos(10, self.cy - (5 + 120), 'Wander Multiplier: ' + str(self.prey[0].wander_multiplier))
-            egi.text_at_pos(10, self.cy - (5 + 150), 'Value Step: ' + str(self.value_step))
+            egi.text_at_pos(10, self.cy - (5 + 135), 'Separate by Avoid: ' + str(self.prey[0].separate_by_avoid))
+            egi.text_at_pos(10, self.cy - (5 + 165), 'Value Step: ' + str(self.value_step))
 
     def add_prey(self, prey):
         self.agents.append(prey)
@@ -162,6 +164,9 @@ class World(object):
 
                 if agent.wander_multiplier < 0:
                     agent.wander_multiplier = 0
+        elif value == 'separate by avoid':
+            for agent in self.agents:
+                agent.separate_by_avoid = not agent.separate_by_avoid
 
     def destroy(self, agent):
         if agent in self.agents:
@@ -177,18 +182,18 @@ class World(object):
 
     def get_menu_text(self):
         if not self.input_menu_open:
-            return 'None. P: (Un)Pause Simulation. A: Prey Agent Menu. I: Info Display Menu. O: Obstacles Menu. V: Value Editing Menu.'
+            return 'None. P: (Un)Pause Simulation. A: Prey Agent Menu. I: Info Display Menu. O: Obstacles Menu. V: Value Editing Menu. 0: Spawn 10 Prey. '
         elif self.new_agents:
-            return 'New Prey Agents. [N]: Spawn [N] Prey Agents. Backspace: Exit Menu.'
+            return 'New Prey Agents [ [N]: Spawn [N] Prey Agents (0 Key Spawns 10 Prey Agents) ]. Backspace: Exit Menu.'
         elif self.agent_info:
-            return 'Toggle Display Info. A: Avoidance Boundary. F: Forces. V: Behaviour Values. W: Wander Circles. Backspace: Exit Menu.'
+            return 'Toggle Display Info [ A: Avoidance Boundary, F: Forces, V: Behaviour Values, W: Wander Circles ]. 0: Spawn 10 Prey. Backspace: Exit Menu.'
         elif self.obstacle_input:
-            return 'Obstacles. N: Spawn New Obstacle. R: Randomise Obstacle Positions. Backspace: Exit Menu.'
+            return 'Obstacles [ N: Spawn New Obstacle, R: Randomise Obstacle Positions ]. 0: Spawn 10 Prey. Backspace: Exit Menu.'
         elif self.change_values:
-            return 'Value Editing. Up/Down: Select Up/Down. Left/Right: Decrease/Increase Selected. Minus/Plus: Decrease/Increase Value Step. Backspace: Exit Menu.'
+            return 'Value Editing [ Up/Down: Select Up/Down, Left/Right: Decrease/Increase Selected, Minus/Plus: Decrease/Increase Value Step ]. 0: Spawn 10 Prey. Backspace: Exit Menu.'
 
     def select_variable(self, change):
-        max_index = 7
+        max_index = 8
         self.selected_index += change
 
         if self.selected_index < 0:
@@ -212,6 +217,8 @@ class World(object):
             self.selected_variable = 'separation'
         elif self.selected_index == 7:
             self.selected_variable = 'wander'
+        elif self.selected_index == 8:
+            self.selected_variable = 'separate by avoid'
 
     def transform_point(self, point, pos, forward, side):
         ''' Transform the given single point, using the provided position,
