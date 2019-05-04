@@ -43,8 +43,10 @@ class Obstacle(object):
             # data for drawing this obstacle
             self.radius = 3 * self.scale_scalar
 
+        self.spawn_margin = self.world.wall_margin + self.radius * 1.5
+
         # where am i? random
-        self.pos = self.get_random_valid_position(self.world.cx, self.world.cy, self.world.obstacles, self.world.agents)
+        self.pos = self.get_random_valid_position(self.world.cx, self.world.cy, self.spawn_margin, self.world.obstacles, self.world.agents)
 
     # The central logic of the Obstacle class ------------------------------------------------
 
@@ -57,13 +59,13 @@ class Obstacle(object):
         dist = to_target.length()
         return dist
 
-    def get_random_valid_position(self, max_x, max_y, obstacles, agents):
+    def get_random_valid_position(self, max_x, max_y, margin, obstacles, agents):
         valid = False
         pos = Vector2D()
 
         while not valid:
             valid = True
-            pos = Vector2D(randrange(max_x), randrange(max_y))
+            pos = Vector2D(randrange(margin, max_x - margin), randrange(margin, max_y - margin))
             
             for obstacle in obstacles:
                 if obstacle is not self and obstacle.distance(pos) <= obstacle.radius * 1.5:
@@ -76,7 +78,7 @@ class Obstacle(object):
         return pos
 
     def randomise_position(self):
-        self.pos = self.get_random_valid_position(self.world.cx, self.world.cy, self.world.obstacles, self.world.agents)
+        self.pos = self.get_random_valid_position(self.world.cx, self.world.cy, self.spawn_margin, self.world.obstacles, self.world.agents)
 
     def render(self, color=None):
         # draw the obstacle according to its default colour

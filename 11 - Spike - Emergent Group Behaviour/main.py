@@ -26,6 +26,7 @@ from vector2d import Vector2D
 from world import World
 from agent import Agent, AGENT_MODES
 from obstacle import Obstacle
+from wall import Wall
 
 NUM_KEYS = {
     KEY._0: 0,
@@ -48,6 +49,7 @@ def on_key_press(symbol, modifiers):
 	    world.new_agents = False
 	    world.agent_info = False
 	    world.obstacle_input = False
+	    world.change_values = False
 	elif world.input_menu_open:
 	    # agent menu
 	    if world.new_agents and symbol in NUM_KEYS:
@@ -55,10 +57,12 @@ def on_key_press(symbol, modifiers):
 
 	        if len(world.prey) > 0:
 	            update_values = True
+	        else:
+	            update_values = False
 
 	        # spawn specified number of agents
 	        while loop > 0:
-	            prey = Agent(world=world, scale=10, radius=10, speed_limiter=2.5)
+	            prey = Agent(world=world, scale=10, radius=10)
 
 	            if update_values:
 	                prey.max_speed = world.prey[0].max_speed
@@ -66,6 +70,7 @@ def on_key_press(symbol, modifiers):
 	                prey.alignment_multiplier = world.prey[0].alignment_multiplier
 	                prey.cohesion_multiplier = world.prey[0].cohesion_multiplier
 	                prey.fleeing_multiplier = world.prey[0].fleeing_multiplier
+	                prey.obstacle_avoidance_multiplier = world.prey[0].obstacle_avoidance_multiplier
 	                prey.separation_multiplier = world.prey[0].separation_multiplier
 	                prey.wander_multiplier = world.prey[0].wander_multiplier
 
@@ -79,6 +84,12 @@ def on_key_press(symbol, modifiers):
 	        # agent vector info
 	        elif symbol == KEY.F:
 	            world.show_forces = not world.show_forces
+	        # neighbourhood info
+	        elif symbol == KEY.N:
+	            world.show_neighbourhood = not world.show_neighbourhood
+	        # radius info
+	        elif symbol == KEY.R:
+	            world.show_radius = not world.show_radius
 	        # agent wandering info
 	        elif symbol == KEY.W:
 	            world.show_wander = not world.show_wander
@@ -132,14 +143,19 @@ def on_resize(cx, cy):
     world.cx = cx
     world.cy = cy
 
+    for wall in world.walls:
+    	wall.set_points()
+
     for obstacle in world.obstacles:
         obstacle.randomise_position()
 
 
 if __name__ == '__main__':
+    x = 1500
+    y = 800
 
     # create a pyglet window and set glOptions
-    win = window.Window(width=500, height=500, vsync=True, resizable=True)
+    win = window.Window(width=x, height=y, vsync=True, resizable=True)
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
     # needed so that egi knows where to draw
@@ -151,12 +167,19 @@ if __name__ == '__main__':
     win.push_handlers(on_resize)
 
     # create a world for agents
-    world = World(2000, 1000)
+    world = World(x, y)
+
+    # add walls
+    world.walls.append(Wall(world=world, side='top'))
+    world.walls.append(Wall(world=world, side='bottom'))
+    world.walls.append(Wall(world=world, side='left'))
+    world.walls.append(Wall(world=world, side='right'))
+
     # add obstacles
     for n in range(6):
         world.obstacles.append(Obstacle(world=world))
     
-    world.predator = Agent(world=world, mode='predator', speed_limiter=5)
+    world.predator = Agent(world=world, mode='predator')
     world.agents.append(world.predator)
     
     # unpause the world ready for movement

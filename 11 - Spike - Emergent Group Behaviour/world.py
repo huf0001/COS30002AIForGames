@@ -16,18 +16,23 @@ class World(object):
         # world size
         self.cx = cx
         self.cy = cy
+        self.wall_margin = 5
 
         # agent fields / collections
         self.predator = None
         self.prey = []
         self.agents = []
         self.obstacles = []
+        self.walls = []
+        self.neighbourhood_radius = 0
 
         # variable for whether to show various pieces of agent information on-screen       
         self.show_values = True
         self.show_avoid = False
         self.show_forces = False
         self.show_wander = False
+        self.show_radius = False
+        self.show_neighbourhood = False
 
         # other variables for managing input in main
         self.input_menu_open = False
@@ -43,15 +48,20 @@ class World(object):
 
     def update(self, delta):
         if not self.paused:
+            self.calculate_neighbours()
+
             for agent in self.agents:
                 agent.update(delta)
 
     def render(self):
-        for agent in self.agents:
-            agent.render()
+        for wall in self.walls:
+            wall.render()
 
         for obstacle in self.obstacles:
             obstacle.render()
+
+        for agent in self.agents:
+            agent.render()
 
         egi.white_pen()
         egi.text_at_pos(5, 5, 'Current Menu: ' + self.get_menu_text())
@@ -77,13 +87,31 @@ class World(object):
             egi.text_at_pos(10, self.cy - (5 + 45), 'Alignment Multiplier: ' + str(self.prey[0].alignment_multiplier))
             egi.text_at_pos(10, self.cy - (5 + 60), 'Cohesion Multiplier: ' + str(self.prey[0].cohesion_multiplier))
             egi.text_at_pos(10, self.cy - (5 + 75), 'Fleeing Multiplier: ' + str(self.prey[0].fleeing_multiplier))
-            egi.text_at_pos(10, self.cy - (5 + 90), 'Separation Multiplier: ' + str(self.prey[0].separation_multiplier))
-            egi.text_at_pos(10, self.cy - (5 + 105), 'Wander Multiplier: ' + str(self.prey[0].wander_multiplier))
-            egi.text_at_pos(10, self.cy - (5 + 135), 'Value Step: ' + str(self.value_step))
+            egi.text_at_pos(10, self.cy - (5 + 90), 'Obstacle Avoidance Multiplier: ' + str(self.prey[0].obstacle_avoidance_multiplier))
+            egi.text_at_pos(10, self.cy - (5 + 105), 'Separation Multiplier: ' + str(self.prey[0].separation_multiplier))
+            egi.text_at_pos(10, self.cy - (5 + 120), 'Wander Multiplier: ' + str(self.prey[0].wander_multiplier))
+            egi.text_at_pos(10, self.cy - (5 + 150), 'Value Step: ' + str(self.value_step))
 
     def add_prey(self, prey):
         self.agents.append(prey)
         self.prey.append(prey)
+
+    def calculate_neighbours(self):
+        self.predator.neighbours = []
+
+        for prey in self.prey:
+            if self.predator.distance(prey.pos) < self.predator.avoid_radius:
+                self.predator.neighbours.append(prey)
+
+        if len(self.prey) > 0 and self.neighbourhood_radius == 0:
+            self.neighbourhood_radius = self.prey[0].avoid_radius * 3
+
+        for agent_a in self.agents:
+            agent_a.neighbours = []
+
+            for agent_b in self.agents:
+                if agent_a is not agent_b and agent_a.distance(agent_b.pos) < self.neighbourhood_radius:
+                    agent_a.neighbours.append(agent_b)
 
     def change_value(self, value, step, sign):
         if value == 'speed':
@@ -116,6 +144,12 @@ class World(object):
 
                 if agent.fleeing_multiplier < 0:
                     agent.fleeing_multiplier = 0
+        elif value == 'obstacle avoidance':
+            for agent in self.prey:
+                agent.obstacle_avoidance_multiplier += step * sign
+
+                if agent.obstacle_avoidance_multiplier < 0:
+                    agent.obstacle_avoidance_multiplier = 0
         elif value == 'separation':
             for agent in self.prey:
                 agent.separation_multiplier += step * sign
@@ -149,12 +183,12 @@ class World(object):
         elif self.agent_info:
             return 'Toggle Display Info. A: Avoidance Boundary. F: Forces. V: Behaviour Values. W: Wander Circles. Backspace: Exit Menu.'
         elif self.obstacle_input:
-            return 'Obstacles. O: Spawn New Obstacle. R: Randomise Obstacle Positions. Backspace: Exit Menu.'
+            return 'Obstacles. N: Spawn New Obstacle. R: Randomise Obstacle Positions. Backspace: Exit Menu.'
         elif self.change_values:
             return 'Value Editing. Up/Down: Select Up/Down. Left/Right: Decrease/Increase Selected. Minus/Plus: Decrease/Increase Value Step. Backspace: Exit Menu.'
 
     def select_variable(self, change):
-        max_index = 6
+        max_index = 7
         self.selected_index += change
 
         if self.selected_index < 0:
@@ -173,8 +207,10 @@ class World(object):
         elif self.selected_index == 4:
             self.selected_variable = 'fleeing'
         elif self.selected_index == 5:
-            self.selected_variable = 'separation'
+            self.selected_variable = 'obstacle avoidance'
         elif self.selected_index == 6:
+            self.selected_variable = 'separation'
+        elif self.selected_index == 7:
             self.selected_variable = 'wander'
 
     def transform_point(self, point, pos, forward, side):
