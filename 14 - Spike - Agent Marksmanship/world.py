@@ -14,15 +14,15 @@ class World(object):
     def __init__(self, cx, cy):
         self.cx = cx
         self.cy = cy
-        #self.target = Vector2D(cx / 2, cy / 2)
-        self.evaders = []
         self.agents = []
+        self.target = None
+        self.shooter = None
         self.obstacles = []
+        self.obstacles_enabled = False
+        self.walls = []
+        self.walls_enabled = False
         self.paused = True
         self.showinfo = True
-        self.new_agents = False
-        self.agent_mode = 'seek'
-        self.hunters = []
         self.hiding_spots = []
         self.agent_scale = 30.0
         self.agent_radius = 1.0 * self.agent_scale
@@ -40,17 +40,18 @@ class World(object):
         for agent in self.agents:
             agent.render()
 
-        for obstacle in self.obstacles:
-            obstacle.render()
+        if obstacles_enabled:
+            for obstacle in self.obstacles:
+                obstacle.render()
 
-        # if self.target:
-        #     egi.red_pen()
-        #     egi.cross(self.target, 10)
+        if walls_enabled:
+            for wall in self.walls:
+                wall.render()
 
         if self.showinfo:
             infotext = ', '.join(set(agent.mode for agent in self.agents))
             egi.white_pen()
-            egi.text_at_pos(0, 0, infotext)
+            egi.text_at_pos(0, 0, 'Shooter Weapon: ' + self.shooter.sub_mode + '. Target Motion: ' + self.target.sub_mode + '.')
 
 
     def destroy(self, agent):

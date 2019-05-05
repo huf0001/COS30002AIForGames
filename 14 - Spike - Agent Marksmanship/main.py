@@ -47,52 +47,16 @@ NUM_KEYS = {
 
 
 def on_key_press(symbol, modifiers):
-    # indicate that you want to create new agents
-    # if symbol == KEY.A:
-    #     world.new_agents = True
-    #     return
-    # spawning new agents
-    # elif world.new_agents and symbol in NUM_KEYS:
-    #     loop = NUM_KEYS[symbol]
-
-    #     while loop > 0:
-    #         world.agents.append(Agent(world=world, mode=world.agent_mode))
-    #         loop -= 1
-    # apply new movement behaviour
-    # elif symbol in AGENT_MODES:
-    #     mode = AGENT_MODES[symbol]
-
-    #     if mode == 'pursuit' and len(world.agents) == 1:
-    #         return
-
-    #     world.agent_mode = mode
-
-    #     for agent in world.agents:
-    #         agent.mode = mode
-
-    #     if mode == 'pursuit':
-    #         world.agents[0].mode = 'flee'
-    #         world.evader = world.agents[0]
-
-    # generate new evading agents   #el
-    if symbol == KEY.E:
-        world.agents.append(Agent(world=world, scale=world.agent_scale, mode='hide', speed_limiter=3, radius=world.agent_radius))
-        world.evaders.append(world.agents[len(world.agents) - 1])
-    # toggle friction on and off
-    elif symbol == KEY.F:
-        for agent in world.agents:
-            agent.applying_friction = not agent.applying_friction
-    # add wandering hunter agent
-    elif symbol == KEY.H:        
-        world.agents.insert(0, Agent(world=world, scale=world.agent_scale, mode='hunt', speed_limiter=5, radius=world.agent_radius))
-        world.hunters.append(world.agents[0])
     # Toggle debug force line info on the agent
-    elif symbol == KEY.I:
+    if symbol == KEY.I:
         for agent in world.agents:
             agent.show_info = not agent.show_info
-    # create a new obstacle
-    elif symbol == KEY.O:
+    # create a new obstacle of obstacles are enabled
+    elif symbol == KEY.N and world.obstacles_enabled:
         world.obstacles.append(Obstacle(world=world))
+    # toggle obstacles on and off
+    elif symbol == KEY.O:
+        world.obstacles_enabled = not world.obstacles_enabled
     # Pause / unpause the game
     elif symbol == KEY.P:
         world.paused = not world.paused
@@ -100,14 +64,15 @@ def on_key_press(symbol, modifiers):
     elif symbol == KEY.R:
         for obstacle in world.obstacles:
             obstacle.randomise_position()
-    # randomise the paths of the agents
-    # elif symbol == KEY.R:
-    #     for agent in world.agents:
-    #         agent.randomise_path()
-    # randomise the positions of the obstacles in the current world space
-
-    # world.new_agents = False
-
+    # scroll through shooter weapons
+    elif symbol == KEY.S:
+        world.shooter.next_weapon()
+    # scroll through target settings
+    elif symbol == KEY.T:
+        world.target.next_movement_type()
+    # toggle walls on and off
+    elif symbol == KEY.W:
+        world.walls_enabled = not world.walls_enabled
 
 def on_resize(cx, cy):
     world.cx = cx

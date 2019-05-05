@@ -35,10 +35,12 @@ class Agent(object):
         'fast': 0.3
     }
 
-    def __init__(self, world=None, scale=30.0, mass=1.0, mode=None, speed_limiter=1, radius=30.0):
+    def __init__(self, world=None, scale=30.0, mass=1.0, mode=None, sub_mode=None, speed_limiter=1, radius=30.0):
         # keep a reference to the world object
         self.world = world
         self.mode = mode
+        self.sub_mode = sub_mode
+        self.sub_mode_index = 0
 
         # what am I and where am I going?
         dir = radians(random()*360)
@@ -90,87 +92,82 @@ class Agent(object):
         # show avoidance info?
         self.show_avoidance = True
 
-        AGENT_MODELS = [
-            'dart',
-            'block',
-            'ufo'
+        # AGENT_MODELS = [
+        #     'dart',
+        #     'block',
+        #     'ufo'
+        # ]
+
+        #model = AGENT_MODELS[randrange(0, 3)]
+
+        # if model == "dart":
+        self.mass = 1.0
+        # limits?
+        self.max_speed = 30 * self.scale_scalar / speed_limiter
+        self.friction = 0.1
+        # data for drawing this agent
+        #self.color = 'ORANGE'
+        self.vehicle_shape = [
+            Point2D(-1.0,  0.6),
+            Point2D( 1.0,  0.0),
+            Point2D(-1.0, -0.6)
         ]
-
-        model = AGENT_MODELS[randrange(0, 3)]
-
-        if model == "dart":
-            self.mass = 1.0
-            # limits?
-            self.max_speed = 30 * self.scale_scalar / speed_limiter
-            self.friction = 0.1
-            # data for drawing this agent
-            #self.color = 'ORANGE'
-            self.vehicle_shape = [
-                Point2D(-1.0,  0.6),
-                Point2D( 1.0,  0.0),
-                Point2D(-1.0, -0.6)
-            ]
-        elif model == "block":
-            self.mass = 1.5
-            # limits?
-            self.max_speed = 22.5 * self.scale_scalar / speed_limiter
-            self.friction = 0.2
-            # data for drawing this agent
-            #self.color = 'RED'
-            self.vehicle_shape = [
-                Point2D(-1.0,  0.6),
-                Point2D( 1.0,  0.6),
-                Point2D( 1.0, -0.6),
-                Point2D(-1.0, -0.6)
-            ]
-        else:
-            self.mass = 2.0
-            # limits?
-            self.max_speed = 18 * self.scale_scalar / speed_limiter
-            self.friction = 0.3
-            # data for drawing this agent
-            #self.color = 'PURPLE'
-            self.vehicle_shape = [
-                Point2D( 0.4,  1.0),
-                Point2D(-0.4,  1.0),
-                Point2D(-1.0,  0.4),
-                Point2D(-1.0, -0.4),
-                Point2D(-0.4, -1.0),
-                Point2D( 0.4, -1.0),
-                Point2D( 1.0, -0.4),
-                Point2D( 1.0,  0.4)
-            ]
+        # elif model == "block":
+        #     self.mass = 1.5
+        #     # limits?
+        #     self.max_speed = 22.5 * self.scale_scalar / speed_limiter
+        #     self.friction = 0.2
+        #     # data for drawing this agent
+        #     #self.color = 'RED'
+        #     self.vehicle_shape = [
+        #         Point2D(-1.0,  0.6),
+        #         Point2D( 1.0,  0.6),
+        #         Point2D( 1.0, -0.6),
+        #         Point2D(-1.0, -0.6)
+        #     ]
+        # else:
+        #     self.mass = 2.0
+        #     # limits?
+        #     self.max_speed = 18 * self.scale_scalar / speed_limiter
+        #     self.friction = 0.3
+        #     # data for drawing this agent
+        #     #self.color = 'PURPLE'
+        #     self.vehicle_shape = [
+        #         Point2D( 0.4,  1.0),
+        #         Point2D(-0.4,  1.0),
+        #         Point2D(-1.0,  0.4),
+        #         Point2D(-1.0, -0.4),
+        #         Point2D(-0.4, -1.0),
+        #         Point2D( 0.4, -1.0),
+        #         Point2D( 1.0, -0.4),
+        #         Point2D( 1.0,  0.4)
+        #     ]
 
     # The central logic of the Agent class ------------------------------------------------
 
     def calculate(self, delta):
         # reset the steering force
-        mode = self.mode        
-        self.wandering = False
-        # if mode == 'seek':
-        #     force = self.seek(self.world.target)
-        # elif mode == 'arrive_slow':
-        #     force = self.arrive(self.world.target, 'slow')
-        # elif mode == 'arrive_normal':
-        #     force = self.arrive(self.world.target, 'normal')
-        # elif mode == 'arrive_fast':
-        #     force = self.arrive(self.world.target, 'fast')
-        # el
-        if mode == 'hide':
-            force = self.hide(self.world.hunters, self.world.obstacles, self.world.hiding_spots, delta)
-        elif mode == 'hunt':
-            force = self.hunt(self.world.evaders, delta)
-        # elif mode == 'flee':
-        #     force = self.flee(self.world.target, delta)
-        # elif mode == 'pursuit':
-        #     force = self.pursuit(self.world.evader)
-        # elif mode == 'wander':
-        #     force = self.wander(delta)
-        # elif mode == 'follow_path':
-        #     force = self.follow_path()
+        mode = self.mode
+
+        if mode == 'target':
+            force = self.calculate_target(delta)
+        elif mode == 'marksman':
+            force = self.calculate_marksman(delta)
         else:
             force = Vector2D()
+
         return force
+
+    def calculate_target(delta):
+    	if self.sub_mode == 'pacing' or self.sub_mode == 'evasive':
+    		# obstacle avoidance behaviours if obstacles are present
+
+	    	if self.sub_mode == 'pacing':
+	    		return self.pace(delta)
+			elif self.sub_mode == 'evasive':
+				return self.evade(delta)
+
+		return Vector2D()
 
     def update(self, delta):
         ''' update vehicle position and orientation '''
@@ -308,6 +305,12 @@ class Agent(object):
 
     # The motion behaviours of Agent ------------------------------------------------------------------
 
+    def pace(self, delta):
+    	return Vector2D()
+
+    def evade(self, delta):
+    	return Vector2D()
+
     def arrive(self, target_pos, speed):
         ''' this behaviour is similar to seek() but it attempts to arrive at
             the target position with a zero velocity'''
@@ -352,10 +355,6 @@ class Agent(object):
             dist_to_self = self.distance(obstacle.pos)
             dist_to_avoid = (obstacle.pos - self.sensor_pos).length()
 
-            # if dist_to_avoid < self.avoid_radius + obstacle.radius or dist_to_self < self.avoid_radius + obstacle.radius:
-            #     if self.mode == 'hide':
-            #         self.best_hiding_spot.collisions += 1
-
             if dist_to_self < self.avoid_radius + obstacle.radius and dist_to_self < closest_dist:
                 closest_obst = obstacle
                 closest_dist = dist_to_self
@@ -381,18 +380,18 @@ class Agent(object):
         else:
             return self.avoid(hunter_pos)
 
-    # def follow_path(self):
-    #     if self.path.current_pt() is self.path.end_pt():
-    #         return self.arrive(self.path.current_pt(), "slow")
-    #     else:
-    #         dist = self.distance(self.path.current_pt())
-    #         if self.distance(self.path.current_pt()) < self.waypoint_threshold:
-    #             self.path.inc_current_pt()
+    def follow_path(self):
+        if self.path.current_pt() is self.path.end_pt():
+            return self.arrive(self.path.current_pt(), "slow")
+        else:
+            dist = self.distance(self.path.current_pt())
+            if self.distance(self.path.current_pt()) < self.waypoint_threshold:
+                self.path.inc_current_pt()
             
-    #         if self.distance(self.path.current_pt()) < self.waypoint_threshold * 3:
-    #             return self.arrive(self.path.current_pt(), "slow")
-    #         else:
-    #             return self.seek(self.path.current_pt())
+            if self.distance(self.path.current_pt()) < self.waypoint_threshold * 3:
+                return self.arrive(self.path.current_pt(), "slow")
+            else:
+                return self.seek(self.path.current_pt())
 
     def hunt(self, evaders, delta):
         prioritise_visible = False
@@ -498,7 +497,16 @@ class Agent(object):
         force = self.seek(wld_target)
         return force 
 
-    # Additional assistive methods used by Agent ------------------------------------------------------
+    # Marksmanship Methods ------------------------------------------------------------------------
+
+    def select_weapon(self, weapon, target):
+    	pass
+    	# self.shoot(target, speed, randomness)
+
+    def shoot(self, target, speed, randomness):
+    	pass
+
+    # Additional assistive methods used by Agent --------------------------------------------------
 
     def apply_friction(self):
         future_pos = self.pos + self.vel * 0.1
@@ -660,6 +668,38 @@ class Agent(object):
             return True
       
         return False # Doesn't fall in any of the above cases 
+
+	def next_movement_type(self):
+		max_index = 2
+		self.sub_mode_index += 1
+
+		if self.sub_mode_index > max_index:
+			self.sub_mode_index = 0
+
+		if self.sub_mode_index == 0:
+			self.sub_mode = 'Stationary'
+		elif self.sub_mode_index == 1:
+			self.sub_mode = 'Pacing'
+		elif self.sub_mode_index == 2:
+			self.sub_mode = 'Evading'
+
+    def next_weapon(self):
+    	max_index = 3
+		self.sub_mode_index += 1
+
+		if self.sub_mode_index > max_index:
+			self.sub_mode_index = 0
+
+		if self.sub_mode_index == 0:
+			self.sub_mode = 'Rifle'
+		elif self.sub_mode_index == 1:
+			self.sub_mode = 'Rocket'
+		elif self.sub_mode_index == 2:
+			self.sub_mode = 'Hand Gun'
+		elif self.sub_mode_index == 3:
+			self.sub_mode = 'Hand Grenade'
+		elif self.sub_mode_index == 4:
+			self.sub_mode = 'Shotgun'
 
     # def randomise_path(self):
     #     num_pts = 4
