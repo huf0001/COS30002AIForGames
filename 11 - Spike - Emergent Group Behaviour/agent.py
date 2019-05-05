@@ -41,13 +41,13 @@ class Agent(object):
 
         # what am I and where am I going?
         dir = radians(random()*360)
+        self.mass = mass
         self.vel = Vector2D()
         self.heading = Vector2D(sin(dir), cos(dir))
         self.side = self.heading.perp()
         self.force = Vector2D()  # current steering force
         self.accel = Vector2D() # current acceleration due to force
         self.radius = radius
-        self.flee_range = 250.0
 
         # scaling variables
         self.scale_scalar = scale
@@ -67,12 +67,15 @@ class Agent(object):
         self.obst_detected = False
         self.sensor_obst_detected = False
         self.fov_markers = []
-        self.neighbours = []
+        self.agent_neighbours = []
+        self.obstacle_neighbours = []
+        self.wall_neighbours = []
 
         if mode == 'predator':
             # motion limits
             self.max_speed = 6 * self.scale_scalar
             self.max_force = 500.0
+            self.flee_range = 250.0
 
             # group behaviour force multipliers
             self.alignment_multiplier = 1.0
@@ -87,20 +90,20 @@ class Agent(object):
             self.weight_running_sum = False
         else:
 
-            # motion limits
-            self.max_speed = 6 * self.scale_scalar
+            # motion limits / multipliers / states
+            self.max_speed = 10 * self.scale_scalar
             self.max_force = 500.0
 
-            # group behaviour force multipliers
-            self.alignment_multiplier = 20.0
-            self.cohesion_multiplier = 2.0
-            self.fleeing_multiplier = 1.0
-            self.obstacle_avoidance_multiplier = 2.0
+            self.alignment_multiplier = 50.0
+            self.cohesion_multiplier = 5.0
+            self.fleeing_multiplier = 20.0
+            self.flee_range = 500.0
+            self.obstacle_avoidance_multiplier = 100.0
             self.separation_multiplier = 1.75
             self.wander_multiplier = 1.5
 
-            # behaviour states
             self.separate_by_avoid = True
+
             self.weight_running_sum = False
 
         # where am i?
@@ -141,11 +144,11 @@ class Agent(object):
         return force
 
     def calculate_predator(self, delta):
-        force = self.avoid_obstacles(self.world.obstacles) * self.obstacle_avoidance_multiplier
-        force += self.avoid_walls(self.world.walls) * self.obstacle_avoidance_multiplier
+        force = self.avoid_obstacles(self.obstacle_neighbours) * self.obstacle_avoidance_multiplier
+        force += self.avoid_walls(self.wall_neighbours) * self.obstacle_avoidance_multiplier
         
         if self.separate_by_avoid:
-             force += self.avoid_agents(self.world.agents)        
+             force += self.avoid_agents(self.agent_neighbours)        
         
         if force.length() == 0: #self.max_force:
             force = self.wander(delta)
@@ -156,12 +159,15 @@ class Agent(object):
         force = Vector2D()
 
         if self.add_force(force.length(), 1):
-            force += self.avoid_obstacles(self.world.obstacles) * self.obstacle_avoidance_multiplier
-            force += self.avoid_walls(self.world.walls) * self.obstacle_avoidance_multiplier
+            if len(self.obstacle_neighbours) > 0:
+                force += self.avoid_obstacles(self.obstacle_neighbours) * self.obstacle_avoidance_multiplier
 
-        if self.add_force(force.length(), self.separation_multiplier):
+            if len(self.wall_neighbours) > 0:
+                force += self.avoid_walls(self.wall_neighbours) * self.obstacle_avoidance_multiplier
+
+        if self.add_force(force.length(), self.separation_multiplier) and len(self.agent_neighbours) > 0:
             if self.separate_by_avoid:
-                force += self.avoid_agents(self.world.agents) * self.separation_multiplier
+                force += self.avoid_agents(self.agent_neighbours) * self.separation_multiplier
             else:
                 force += self.separation() * self.separation_multiplier
 
@@ -183,6 +189,9 @@ class Agent(object):
         ''' update vehicle position and orientation '''
         self.obst_detected = False
         self.sensor_obst_detected = False
+
+        sns_pos = Vector2D(min(self.avoid_radius * 2, self.vel.length()), 0) # factor in current speed
+        self.sensor_pos = self.world.transform_point(sns_pos, self.pos, self.heading, self.side)
 
         # determine the new force
         self.force = self.calculate(delta)      
@@ -278,7 +287,7 @@ class Agent(object):
         avg_heading = Vector2D()
         avg_count = 0
 
-        for agent in self.neighbours:
+        for agent in self.agent_neighbours:
             avg_heading += agent.heading
             avg_count += 1
 
@@ -314,7 +323,10 @@ class Agent(object):
     
     def avoid_agents(self, agents):
         agts = agents.copy()
-        agts.remove(self)
+
+        if self in agts:
+            agts.remove(self)
+
         return self.avoid_obstacles(agts)  
 
     def avoid_obstacles(self, obstacles):
@@ -352,9 +364,6 @@ class Agent(object):
         return result
 
     def avoid_walls(self, walls):
-        sns_pos = Vector2D(min(self.avoid_radius * 2, self.vel.length()), 0) # factor in current speed
-        self.sensor_pos = self.world.transform_point(sns_pos, self.pos, self.heading, self.side)
-
         closest_wall = None
         closest_dist = 9999999999999
 
@@ -390,7 +399,7 @@ class Agent(object):
         force = Vector2D()
         avg_count = 0
 
-        for agent in self.neighbours:
+        for agent in self.agent_neighbours:
             centre_mass += agent.pos
             avg_count += 1
 
@@ -416,7 +425,7 @@ class Agent(object):
         force = Vector2D()
         avoid = []
 
-        for agent in self.neighbours:
+        for agent in self.agent_neighbours:
             # force += self.avoid(agent)
 
             to_agent = self.pos - agent.pos
@@ -449,11 +458,15 @@ class Agent(object):
     # Additional assistive methods used by Agent ------------------------------------------------------
 
     def collided(self, pos):
-        for obstacle in self.world.obstacles:
+        for wall in self.wall_neighbours:
+            if wall.distance(pos) < self.radius:
+                return True
+
+        for obstacle in self.obstacle_neighbours:
             if obstacle.distance(pos) < self.radius + obstacle.radius:
                 return True
 
-        for agent in self.world.agents:
+        for agent in self.agent_neighbours:
             if agent is not self and agent.distance(pos) < self.radius + agent.radius:
                 return True
 
@@ -541,32 +554,3 @@ class Agent(object):
 
     def speed(self):
         return self.vel.length()
-
-    # def update_multiplier(self, multiplier, change):
-    #     # group behaviour force multipliers
-    #     if multiplier == 'alignment':
-    #         self.alignment_multiplier += change
-
-    #         if self.alignment_multiplier < 0:
-    #             self.alignment_multiplier = 0
-    #     elif multiplier == 'cohesion':
-    #         self.cohesion_multiplier += change  
-            
-    #         if self.cohesion_multiplier < 0:
-    #             self.cohesion_multiplier = 0                
-    #     elif multiplier == 'fleeing':
-    #         self.fleeing_multiplier += change
-
-    #         if self.fleeing_multiplier < 0:
-    #             self.fleeing_multiplier = 0
-    #     elif multiplier == 'separation':
-    #         self.separation_multiplier += change
-
-    #         if self.separation_multiplier < 0:
-    #             self.separation_multiplier = 0
-    #     elif multiplier == 'wander':
-    #         self.wander_multiplier += change
-
-    #         if self.wander_multiplier < 0:
-    #             self.wander_multiplier = 0
-

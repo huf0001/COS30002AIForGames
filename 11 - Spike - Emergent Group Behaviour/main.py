@@ -50,6 +50,9 @@ def on_key_press(symbol, modifiers):
 	    world.agent_info = False
 	    world.obstacle_input = False
 	    world.change_values = False
+	# Pause / unpause the game
+	elif symbol == KEY.P:
+	    world.paused = not world.paused
 	# shortcut key for spawning 10 new prey agents
 	elif symbol == KEY._0:
 	    loop = 10
@@ -155,9 +158,6 @@ def on_key_press(symbol, modifiers):
 	    elif symbol == KEY.O:
 	        world.input_menu_open = True
 	        world.obstacle_input = True
-        # Pause / unpause the game
-	    elif symbol == KEY.P:
-	        world.paused = not world.paused
         # toggle on / off the ability to change values of agent variables
 	    elif symbol == KEY.V:
 	        world.change_values = True
