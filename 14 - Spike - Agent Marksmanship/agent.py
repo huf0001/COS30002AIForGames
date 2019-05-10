@@ -120,7 +120,8 @@ class Agent(object):
 
     def update(self, delta):
         ''' update vehicle position and orientation '''
-        self.check_hit()
+        if self.hit_time is not None and (datetime.now() - self.hit_time).total_seconds() > 0.1:
+            self.hit_time = None
 
         self.obst_detected = False
         self.sensor_obst_detected = False
@@ -134,10 +135,6 @@ class Agent(object):
         	elif (datetime.now() - self.last_shot).total_seconds() > self.cooldown:
         		self.last_shot = datetime.now()
         		self.shoot(self.world.target)
-
-    def check_hit(self):
-        if self.hit_time is not None and (datetime.now() - self.hit_time).total_seconds() > 0.1:
-            self.hit_time = None
 
     def moving(self):
     	if self.mode == 'shooter' and self.world.target.sub_mode == 'Evading':
@@ -375,38 +372,6 @@ class Agent(object):
         agts.remove(self)
         return self.avoid_obstacles(agts)  
 
-    def avoid_walls(self, walls):
-        closest_wall = None
-        closest_dist = 9999999999999
-
-        closest_wall_sns = None
-        closest_dist_sns = 9999999999999
-
-        result = Vector2D(0, 0)
-
-        for wall in walls:
-            wall_pos = wall.get_pos(self.pos)
-            dist_to_self = self.distance(wall_pos)
-            dist_to_avoid = (wall_pos - self.sensor_pos).length()
-
-            if dist_to_self < self.avoid_radius and dist_to_self < closest_dist:
-                closest_wall = wall
-                closest_dist = dist_to_self
-
-            if dist_to_avoid < self.avoid_radius and dist_to_avoid < closest_dist_sns:
-                closest_wall_sns = wall
-                closest_dist_sns = dist_to_avoid
-
-        if closest_wall is not None:
-            self.obst_detected = True
-            result += self.avoid(closest_wall.get_pos(self.pos))
-
-        if closest_wall_sns is not None:
-            self.sensor_obst_detected = True
-            result += self.avoid(closest_wall_sns.get_pos(self.pos))
-
-        return result
-
     def avoid_obstacles(self, obstacles):
         closest_obst = None
         closest_dist = 9999999999999
@@ -477,6 +442,38 @@ class Agent(object):
 
         return result
 
+    def avoid_walls(self, walls):
+        closest_wall = None
+        closest_dist = 9999999999999
+
+        closest_wall_sns = None
+        closest_dist_sns = 9999999999999
+
+        result = Vector2D(0, 0)
+
+        for wall in walls:
+            wall_pos = wall.get_pos(self.pos)
+            dist_to_self = self.distance(wall_pos)
+            dist_to_avoid = (wall_pos - self.sensor_pos).length()
+
+            if dist_to_self < self.avoid_radius and dist_to_self < closest_dist:
+                closest_wall = wall
+                closest_dist = dist_to_self
+
+            if dist_to_avoid < self.avoid_radius and dist_to_avoid < closest_dist_sns:
+                closest_wall_sns = wall
+                closest_dist_sns = dist_to_avoid
+
+        if closest_wall is not None:
+            self.obst_detected = True
+            result += self.avoid(closest_wall.get_pos(self.pos))
+
+        if closest_wall_sns is not None:
+            self.sensor_obst_detected = True
+            result += self.avoid(closest_wall_sns.get_pos(self.pos))
+
+        return result
+
     def flee(self, hunter_pos, delta):
         ''' move away from hunter position '''
         if self.distance(hunter_pos) > self.avoidance_range:
@@ -496,6 +493,23 @@ class Agent(object):
                 return self.arrive(self.path.current_pt(), "slow")
             else:
                 return self.seek(self.path.current_pt())
+
+    def hide(self, hunter, hiding_spots, delta):
+        self.best_hiding_spot = None        
+        
+        # if only one hiding spot, just pick that spot 
+        if len(hiding_spots) == 1:            
+            self.best_hiding_spot = hiding_spots[0]
+        elif len(hiding_spots) > 1:  
+            # go to best hiding spot
+            self.best_hiding_spot = self.get_best_hiding_spot(hiding_spots, hunter)
+        
+        if self.best_hiding_spot is None:
+            # default: panic and run away from a random hunter
+            return self.flee(hunter.pos, delta)
+        else:
+            self.best_hiding_spot.best = True    
+            return self.arrive(self.best_hiding_spot.pos, 'fast')          
 
     def hunt(self, evader, delta):
         prioritise_visible = False
@@ -542,23 +556,6 @@ class Agent(object):
                 if len(hunting) > 1:
                     hunting.sort(key=lambda x: x.distance(self.pos))                  
                 return self.pursuit(hunting[0])
-
-    def hide(self, hunter, hiding_spots, delta):
-        self.best_hiding_spot = None        
-        
-        # if only one hiding spot, just pick that spot 
-        if len(hiding_spots) == 1:            
-            self.best_hiding_spot = hiding_spots[0]
-        elif len(hiding_spots) > 1:  
-            # go to best hiding spot
-            self.best_hiding_spot = self.get_best_hiding_spot(hiding_spots, hunter)
-        
-        if self.best_hiding_spot is None:
-            # default: panic and run away from a random hunter
-            return self.flee(hunter.pos, delta)
-        else:
-            self.best_hiding_spot.best = True    
-            return self.arrive(self.best_hiding_spot.pos, 'fast')          
 
     def pace(self, delta):
     	threshold = 10
@@ -615,6 +612,9 @@ class Agent(object):
         return force 
 
     # Marksmanship Methods ------------------------------------------------------------------------
+    def get_future_pos_with_accel(self, start_vel, accel, time):
+    	displacement = (start_vel * time) + (0.5 * accel * time * time) #d = ut + 0.5at^2
+    	return displacement 
 
     def shoot(self, target):
     	slow_speed = 250
@@ -632,7 +632,6 @@ class Agent(object):
     		print("stationary: " + str(target.pos))
 
     		if target.sub_mode == 'Stationary':
-    			# get target position
     			target_pos = target.pos.copy()
     		else:
     			''' this behaviour predicts where an agent will be in time T and seeks
@@ -649,10 +648,6 @@ class Agent(object):
     			while loop:
     				loop_count += 1
     				future_time = (future_target_pos - self.pos).length()/(p_speed)		# first loop: current target.pos
-    				
-    				# if p_speed == slow_speed:
-    				# 	future_target_pos = target.pos + target.vel * future_time
-    				# else:
     				future_target_pos = target.pos + self.get_future_pos_with_accel(target.vel, target.accel, future_time)
 
     				# if it's not evading, it's not gonna move outside the bounds of the window
@@ -661,8 +656,6 @@ class Agent(object):
 
     				vel_to_future_pos = (future_target_pos - self.pos).normalise() * p_speed
     				future_self_pos = self.pos + vel_to_future_pos * future_time
-
-    				# to_future_target_pos = future_target_pos - future_self_pos
     				new_dist = (future_target_pos - future_self_pos).length()
 
     				# keep iterating?
@@ -675,9 +668,6 @@ class Agent(object):
     						loop = False
 
     				else:
-    					# print('testing overshoot for slow speed')
-    					# if p_speed == slow_speed:
-    					# 	dist = new_dist
     					loop = False
 
     			target_pos = future_target_pos
@@ -711,7 +701,7 @@ class Agent(object):
     			p.pos = self.pos.copy()
     			p.p_type = self.sub_mode
 
-    			# where is the grenade gonna land?
+    			# where's the grenade gonna land?
     			if self.sub_mode == 'Hand Grenade':
     				p.target = target_pos
 
@@ -720,17 +710,8 @@ class Agent(object):
 
     			loop -= 1
 
-    def get_future_pos_with_accel(self, start_vel, accel, time):
-    	displacement = (start_vel * time) + (0.5 * accel * time * time) #d = ut + 0.5att; reducing it to 0.5at as that overshot
-    	return displacement 
 
     # Additional assistive methods used by Agent --------------------------------------------------
-
-	    # def apply_friction(self):
-	    #     future_pos = self.pos + self.vel * 0.1
-	    #     accel_to_future_pos = self.seek(future_pos)
-	    #     friction = accel_to_future_pos * -self.friction
-	    #     return friction
 
     def collided(self):
         if self.world.obstacles_enabled:
@@ -748,14 +729,6 @@ class Agent(object):
                 return True
 
         return False
-
-	    # def direction(self, target_pos):
-	    # 	return self.direction(target_pos, self.pos)
-
-	    # def direction(self, target_pos, chaser):
-	    #     to_target = target_pos - chaser.pos
-	    #     direction = to_target.normalise()
-	    #     return direction
 
     def distance(self, target_pos):
         to_target = target_pos - self.pos

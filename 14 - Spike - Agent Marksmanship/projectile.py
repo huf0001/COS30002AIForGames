@@ -50,8 +50,7 @@ class Projectile(object):
         if not self.exploding:
             ''' update projectile position '''
             self.pos += self.vel * delta
-            
-            # treat world as continuous space - wrap new position if needed
+
             if self.pos.x < 0 or self.pos.x > self.world.cx or self.pos.y < 0 or self.pos.y > self.world.cy:
                 self.world.destroy_projectile(self)
 
@@ -60,7 +59,7 @@ class Projectile(object):
             if len(collided) > 0:
                 if self.p_type == 'Rocket' or self.p_type == 'Hand Grenade':
                     for collision in collided:
-                        if collision in self.world.agents:
+                        if collision is not self.target and collision in self.world.agents:
                             collision.hit_time = datetime.now()
 
                     self.target = None
@@ -73,7 +72,6 @@ class Projectile(object):
                     
                     self.world.destroy_projectile(self)
         else:
-            # self.world.destroy_projectile(self)
             self.radius += 0.1 * self.scale_scalar * self.explosion_multiplier
 
             collided = self.collided()
@@ -109,9 +107,6 @@ class Projectile(object):
         for agent in self.world.agents:
             if (self.left_barrel or agent is not self.shooter) and self.distance(agent.pos) < self.radius + agent.radius:
                 collided.append(agent)
-
-        # if len(collided) > 0:
-        #     return collided
 
         if self.world.walls_enabled:
             for wall in self.world.walls:

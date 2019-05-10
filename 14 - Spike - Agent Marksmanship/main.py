@@ -48,14 +48,15 @@ NUM_KEYS = {
 
 
 def on_key_press(symbol, modifiers):
-    # Toggle debug force line info on the agent
+    # force display of avoidance ranges
     if symbol == KEY.A:
         for agent in world.agents:
             agent.show_avoidance = not agent.show_avoidance
-    if symbol == KEY.I:
-        for agent in world.agents:
-            agent.show_info = not agent.show_info
-    if symbol == KEY.I:
+    # toggle walls on and off
+    elif symbol == KEY.B:
+        world.walls_enabled = not world.walls_enabled
+    # Toggle debug force line info on the agent
+    elif symbol == KEY.I:
         for agent in world.agents:
             agent.show_info = not agent.show_info
     # create a new obstacle of obstacles are enabled
@@ -71,18 +72,12 @@ def on_key_press(symbol, modifiers):
     elif symbol == KEY.R:
         for obstacle in world.obstacles:
             obstacle.randomise_position()
-    # scroll through shooter weapons
-    elif symbol == KEY.S:
-        world.shooter.next_weapon()
     # scroll through target settings
     elif symbol == KEY.T:
         world.target.next_movement_type()
-    # toggle walls on and off
+    # scroll through shooter weapons
     elif symbol == KEY.W:
-        world.walls_enabled = not world.walls_enabled
-    # elif symbol == KEY.SPACE:
-    #     world.shooter.shoot(world.target)
-
+        world.shooter.next_weapon()
 
 def on_resize(cx, cy):
     world.cx = cx
