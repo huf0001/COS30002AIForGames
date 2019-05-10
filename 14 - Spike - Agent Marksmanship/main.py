@@ -26,6 +26,7 @@ from vector2d import Vector2D
 from world import World
 from agent import Agent, AGENT_MODES  # Agent with seek, arrive, flee and pursuit
 from obstacle import Obstacle
+from wall import Wall
 
 NUM_KEYS = {
     KEY._0: 0,
@@ -48,6 +49,12 @@ NUM_KEYS = {
 
 def on_key_press(symbol, modifiers):
     # Toggle debug force line info on the agent
+    if symbol == KEY.A:
+        for agent in world.agents:
+            agent.show_avoidance = not agent.show_avoidance
+    if symbol == KEY.I:
+        for agent in world.agents:
+            agent.show_info = not agent.show_info
     if symbol == KEY.I:
         for agent in world.agents:
             agent.show_info = not agent.show_info
@@ -73,6 +80,9 @@ def on_key_press(symbol, modifiers):
     # toggle walls on and off
     elif symbol == KEY.W:
         world.walls_enabled = not world.walls_enabled
+    # elif symbol == KEY.SPACE:
+    #     world.shooter.shoot(world.target)
+
 
 def on_resize(cx, cy):
     world.cx = cx
@@ -81,11 +91,18 @@ def on_resize(cx, cy):
     for obstacle in world.obstacles:
         obstacle.randomise_position()
 
+    for wall in world.walls:
+        wall.set_points()
+
+    world.set_agents(cx, cy)
+
 
 if __name__ == '__main__':
+    x = 1600
+    y = 800
 
     # create a pyglet window and set glOptions
-    win = window.Window(width=500, height=500, vsync=True, resizable=True)
+    win = window.Window(width=x, height=y, vsync=True, resizable=True)
     glEnable(GL_BLEND)
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
     # needed so that egi knows where to draw
@@ -94,14 +111,23 @@ if __name__ == '__main__':
     fps_display = clock.ClockDisplay()
     # register key and mouse event handlers
     win.push_handlers(on_key_press)
-    #win.push_handlers(on_mouse_press)
     win.push_handlers(on_resize)
 
     # create a world for agents
-    world = World(2000, 1000)
+    world = World(x, y)
+
     # add obstacles
     for n in range(6):
         world.obstacles.append(Obstacle(world=world))
+
+    # add walls
+    world.walls.append(Wall(world=world, side='top'))
+    world.walls.append(Wall(world=world, side='bottom'))
+    world.walls.append(Wall(world=world, side='left'))
+    world.walls.append(Wall(world=world, side='right'))
+
+    # add agents
+    world.set_agents(world.cx, world.cy)
     
     # unpause the world ready for movement
     world.paused = False

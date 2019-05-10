@@ -8,15 +8,19 @@ For class use only. Do not publically share or post this code without permission
 from vector2d import Vector2D
 from matrix33 import Matrix33
 from graphics import egi
+from agent import Agent
 
 
 class World(object):
     def __init__(self, cx, cy):
         self.cx = cx
         self.cy = cy
+        self.wall_margin = 5
+
         self.agents = []
         self.target = None
         self.shooter = None
+        self.projectiles = []
         self.obstacles = []
         self.obstacles_enabled = False
         self.walls = []
@@ -30,23 +34,29 @@ class World(object):
 
     def update(self, delta):
         if not self.paused:
-            if len(self.hunters) > 0 and len(self.evaders) > 0:
-                self.hiding_spots = self.get_hiding_spots(self.hunters, self.obstacles)
+            if self.target.sub_mode == 'Evading':
+                self.hiding_spots = self.get_hiding_spots(self.shooter, self.obstacles)
 
             for agent in self.agents:
                 agent.update(delta)
+
+            for projectile in self.projectiles:
+                projectile.update(delta)
 
     def render(self):
         for agent in self.agents:
             agent.render()
 
-        if obstacles_enabled:
+        if self.obstacles_enabled:
             for obstacle in self.obstacles:
                 obstacle.render()
 
-        if walls_enabled:
+        if self.walls_enabled:
             for wall in self.walls:
                 wall.render()
+
+        for projectile in self.projectiles:
+            projectile.render()
 
         if self.showinfo:
             infotext = ', '.join(set(agent.mode for agent in self.agents))
@@ -66,33 +76,44 @@ class World(object):
 
         del agent
 
-    def get_hiding_spots(self, hunters, obstacles):
+    def destroy_projectile(self, projectile):
+        print('destroying projectile. projectile pool length: ' + str(len(projectile.shooter.projectile_pool)))
+        # remove projectile from world so that it does not render or update
+        if projectile in self.projectiles:
+            self.projectiles.remove(projectile)
+
+        # return projectile to shooter's projectile pool
+        projectile.vel = None
+        projectile.target = None
+        projectile.p_type = None
+        projectile.explosion_time = None
+        projectile.shooter.projectile_pool.append(projectile)
+        print('destroyed projectile. projectile pool length: ' + str(len(projectile.shooter.projectile_pool)))
+
+    def get_hiding_spots(self, hunter, obstacles):
         hiding_spots = []
 
         # check for possible hiding spots
-        for hunter in hunters:
-            for obstacle in obstacles:
-                spot = obstacle.hiding_spot
-                spot.pos = self.get_hiding_spot_position(hunter, obstacle)
-                spot.valid = True
-                spot.rank = 0
-                total = 0
+        for obstacle in obstacles:
+            spot = obstacle.hiding_spot
+            spot.pos = self.get_hiding_spot_position(hunter, obstacle)
+            spot.valid = True
+            spot.rank = 0
+            total = 0
 
-                # check if spot is in the bounds of the screen
-                if spot.pos.x < 0 or spot.pos.x > self.cx or spot.pos.y < 0 or spot.pos.y > self.cy:
-                    spot.valid = False
-                else:
-                    # check if spot is inside the bounds of an object
-                    for o in obstacles:
-                        if spot.distance(o.pos) < o.radius:
-                            spot.valid = False
- 
-                # update spot data                                      
-                for hunter in hunters:
-                    total += spot.distance(hunter.pos)
+            # check if spot is in the bounds of the screen
+            if spot.pos.x < 0 or spot.pos.x > self.cx or spot.pos.y < 0 or spot.pos.y > self.cy:
+                spot.valid = False
+            else:
+                # check if spot is inside the bounds of an object
+                for o in obstacles:
+                    if spot.distance(o.pos) < o.radius:
+                        spot.valid = False
 
-                spot.avg_dist_to_hunter = total / len(hunters)
-                hiding_spots.append(spot)
+            # update spot data
+
+            spot.avg_dist_to_hunter = spot.distance(hunter.pos)
+            hiding_spots.append(spot)
 
         return hiding_spots
 
@@ -107,6 +128,24 @@ class World(object):
 
         # scale size past the obstacle to the hiding location
         return (to_obstacle * dist_away) + obstacle.pos
+
+    def set_agents(self, max_x, max_y):
+        if self.shooter == None:
+            self.shooter = Agent(world=self, mode='shooter', sub_mode='Rifle')
+            self.agents.append(self.shooter)
+        if self.target == None:  
+            self.target = Agent(world=self, mode='target', sub_mode='Stationary')
+            self.agents.append(self.target)
+
+        self.shooter.pos = Vector2D(max_x * 0.8, max_y / 2)
+        self.shooter.heading = (self.target.pos - self.shooter.pos).get_normalised()
+        self.shooter.side = self.shooter.heading.perp()
+        
+        self.target.pos = Vector2D(max_x * 0.2, max_y / 2)
+        self.target.heading = (self.shooter.pos - self.target.pos).get_normalised()
+        self.target.side = self.target.heading.perp()
+        self.target.current_pt = Vector2D(self.target.pos.x, max_y * 0.25)
+        self.target.next_pt = Vector2D(self.target.pos.x, max_y * 0.75)
 
     def wrap_around(self, pos):
         ''' Treat world as a toroidal space. Updates parameter object pos '''

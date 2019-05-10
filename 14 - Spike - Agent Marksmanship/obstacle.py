@@ -18,6 +18,8 @@ class Obstacle(object):
         # keep a reference to the world object
         self.world = world
 
+        self.color = 'GREY'
+
         # scaling variables
         self.scale_scalar = scale
         #self.scale_vector = Vector2D(scale, scale)  # easy scaling of agent size
@@ -35,15 +37,12 @@ class Obstacle(object):
 
         if size == "small":
             # data for drawing this obstacle
-            self.color = 'ORANGE'
             self.radius = 1 * self.scale_scalar
         elif size == "medium":
             # data for drawing this obstacle
-            self.color = 'RED'
             self.radius = 2 * self.scale_scalar
         else:
             # data for drawing this obstacle
-            self.color = 'PURPLE'
             self.radius = 3 * self.scale_scalar
 
         # where am i? random
