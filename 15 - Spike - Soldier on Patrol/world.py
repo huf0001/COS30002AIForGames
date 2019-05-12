@@ -9,6 +9,7 @@ from vector2d import Vector2D
 from matrix33 import Matrix33
 from graphics import egi
 from agent import Agent
+from path import Path
 
 
 class World(object):
@@ -130,17 +131,20 @@ class World(object):
 
     def set_agents(self, max_x, max_y):
         if self.shooter == None:
-            self.shooter = Agent(world=self, agent_type='shooter', weapon='Rifle')
+            self.shooter = Agent(world=self, agent_type='shooter', mode='Patrol', weapon='Rifle')
             self.agents.append(self.shooter)
+            self.shooter.path = Path(num_pts=9, looped=True)
         if self.target == None:  
             self.target = Agent(world=self, agent_type='target', mode='Stationary')
             self.agents.append(self.target)
 
-        self.shooter.pos = Vector2D(max_x * 0.8, max_y / 2)
-        self.shooter.heading = (self.target.pos - self.shooter.pos).get_normalised()
+        self.shooter.pos = Vector2D(max_x * 0.2, max_y * 0.2)
+        self.shooter.heading = Vector2D(0,1)
         self.shooter.side = self.shooter.heading.perp()
+        self.shooter.path.recreate_preset_path(maxx=self.cx, maxy=self.cy)
+        self.shooter.update_hunt_dist(self.target)
         
-        self.target.pos = Vector2D(max_x * 0.2, max_y / 2)
+        self.target.pos = Vector2D(max_x /2, max_y / 2)
         self.target.heading = (self.shooter.pos - self.target.pos).get_normalised()
         self.target.side = self.target.heading.perp()
         self.target.current_pt = Vector2D(self.target.pos.x, max_y * 0.25)

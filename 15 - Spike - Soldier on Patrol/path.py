@@ -63,10 +63,11 @@ class Path(object):
         ''' Return True if at the end of the path. '''
         return self._cur_pt_idx >= self._num_pts - 1
 
-    def create_random_path(self, num_pts, minx, miny, maxx, maxy, looped=False):
+    def create_random_path(self, num_pts, minx, miny, maxx, maxy, looped=None):
         ''' Creates random path within the rectangle described by the
             min/max values. Stores and returns path. '''
-        self.looped = looped
+        if looped is not None:
+            self.looped = looped
         self.clear()
         midX = (maxx + minx) / 2.0
         midY = (maxy + miny) / 2.0
@@ -83,6 +84,21 @@ class Path(object):
 
         self._reset()  # reset num_pts and cur_pt_idx
         return self._pts
+
+    def recreate_preset_path(self, maxx, maxy):
+        self._pts = []
+
+        self._pts.append(Vector2D(maxx * 0.2, maxy * 0.2))
+        self._pts.append(Vector2D(maxx * 0.2, maxy * 0.8))
+        self._pts.append(Vector2D(maxx * 0.8, maxy * 0.8))
+        self._pts.append(Vector2D(maxx * 0.8, maxy * 0.2))
+        self._pts.append(Vector2D(maxx * 0.2, maxy * 0.2))
+        self._pts.append(Vector2D(maxx * 0.2, maxy * 0.8))
+        self._pts.append(Vector2D(maxx * 0.8, maxy * 0.2))
+        self._pts.append(Vector2D(maxx * 0.8, maxy * 0.8))
+        self._pts.append(Vector2D(maxx * 0.2, maxy * 0.2))
+
+        self._num_pts = len(self._pts)
 
     def add_way_pt(self, new_pt):
         ''' Add the waypoint to the end of the path.'''

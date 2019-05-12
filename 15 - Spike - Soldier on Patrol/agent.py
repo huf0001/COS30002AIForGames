@@ -37,7 +37,7 @@ class Agent(object):
         'fast': 0.3
     }
 
-    def __init__(self, world=None, scale=30.0, mass=1.0, agent_type=None, mode=None, sub_mode=None, weapon=None, speed_limiter=5, radius=30.0, pos=Vector2D()):
+    def __init__(self, world=None, scale=30.0, mass=1.0, agent_type=None, mode=None, sub_mode=None, weapon=None, speed_limiter=5, radius=30.0, pos=Vector2D(), path=Path()):
         # keep a reference to the world object
         self.world = world
         self.agent_type = agent_type
@@ -70,9 +70,9 @@ class Agent(object):
         self.max_speed = 30 * self.scale_scalar / speed_limiter
 
         # path variables
-        # self.path = Path()
-        # self.randomise_path()
-        # self.waypoint_threshold = 40.0
+        self.path = path
+        self.randomise_path()
+        self.waypoint_threshold = 40.0
 
         # wander variables
         self.wander_dist = 2.0 * self.scale_scalar
@@ -96,9 +96,9 @@ class Agent(object):
 
         # where am i?
         if pos is None:
-        	self.pos = self.get_random_valid_position(world.cx, world.cy, self.world.obstacles, self.world.agents)
+            self.pos = self.get_random_valid_position(world.cx, world.cy, self.world.obstacles, self.world.agents)
         else:
-        	self.pos = pos
+            self.pos = pos
 
         # projectile variables
         self.hit_time = None
@@ -106,8 +106,8 @@ class Agent(object):
         self.projectile_pool = []
         i = 0
         while i < 200:
-        	self.projectile_pool.append(Projectile(world=self.world, shooter=self))
-        	i += 1
+            self.projectile_pool.append(Projectile(world=self.world, shooter=self))
+            i += 1
 
         self.current_pt = None
         self.next_pt = None
@@ -122,90 +122,94 @@ class Agent(object):
     # The central logic of the Agent class ------------------------------------------------
 
     def update(self, delta):
-        ''' update vehicle position and orientation '''
         if self.hit_time is not None and (datetime.now() - self.hit_time).total_seconds() > 0.1:
             self.hit_time = None
 
         self.obst_detected = False
         self.sensor_obst_detected = False
 
-        if self.moving():
-            self.move(delta)
+        sns_pos = Vector2D(min(self.avoid_radius * 2, self.vel.length()), 0)
+        self.sensor_pos = self.world.transform_point(sns_pos, self.pos, self.heading, self.side)
 
         if self.agent_type == 'shooter':
-        	if self.world.target.mode == 'Evading' and self.world.obstacles_enabled and not self.see_target:
-        	 	return
-        	elif (datetime.now() - self.last_shot).total_seconds() > self.cooldown:
-        		self.last_shot = datetime.now()
-        		self.shoot(self.world.target)
+            self.update_shooter(delta)
+        elif self.agent_type == 'target':
+            self.update_target(delta)
 
-    def moving(self):
-    	if self.agent_type == 'shooter' and self.world.target.mode == 'Evading':
-    		return True
+    def update_shooter(self, delta):
+        self.see_target = False
+        self.update_fov(self.world.obstacles, self.world.agents)
 
-    	elif self.agent_type == 'target' and self.mode is not 'Stationary':
-    		return True
-    
-    	return False
+        if self.see_target or self.distance(self.world.target.pos) < self.hunt_dist + self.world.target.radius:
+            self.mode = 'Attack'
+        else:
+            self.mode = 'Patrol'
+
+        self.move(delta)
+
+        if self.mode == 'Attack':
+            if self.see_target and (datetime.now() - self.last_shot).total_seconds() > self.cooldown:
+                self.last_shot = datetime.now()
+                self.shoot(self.world.target)
+
+    def update_target(self, delta):
+        if self.mode is not 'Stationary':
+            self.move(delta)
 
     def move(self, delta):
-    	if self.agent_type == 'target':
-	    	sns_pos = Vector2D(min(self.avoid_radius * 2, self.vel.length()), 0) # factor in current speed
-	    	self.sensor_pos = self.world.transform_point(sns_pos, self.pos, self.heading, self.side)
+        force = Vector2D()
 
-    	force = Vector2D()
+        # disabled obstacle avoidance; hinders movement in this scenario
+        # if self.world.obstacles_enabled:
+        #     force += self.avoid_obstacles(self.world.obstacles)
 
-    	# disabled obstacle avoidance; hinders movement in this scenario
-    	# if self.world.obstacles_enabled:
-    	# 	force += self.avoid_obstacles(self.world.obstacles)
+        if self.world.walls_enabled:
+            force += self.avoid_walls(self.world.walls) * 10
 
-    	if self.world.walls_enabled:
-    		force += self.avoid_walls(self.world.walls) * 10
+        force += self.avoid_agents(self.world.agents)
 
-    	force += self.avoid_agents(self.world.agents)
+        if force.length() == 0:
+            force = self.calculate(delta)  
 
-    	if force.length() == 0:
-    		force = self.calculate(delta)  
+        ## limit force
+        force.truncate(self.max_force)
+        self.force = force
 
-    	## limit force
-    	force.truncate(self.max_force)
-    	self.force = force
+        # determine the new accelteration
+        self.accel = force * (1 / self.mass)  # not needed if mass = 1.0
 
-    	# determine the new accelteration
-    	self.accel = force * (1 / self.mass)  # not needed if mass = 1.0
-
-    	# new velocity
-    	self.vel += self.accel * delta
-    	self.vel.truncate(self.max_speed)
+        # new velocity
+        self.vel += self.accel * delta
+        self.vel.truncate(self.max_speed)
     
-    	# update position
-    	pos = self.pos
-    	accel = self.accel
-    	vel = self.vel
-    	force = self.force
-    	self.pos += self.vel * delta
+        # update position
+        pos = self.pos
+        accel = self.accel
+        vel = self.vel
+        force = self.force
+        self.pos += self.vel * delta
     
-    	# update heading is non-zero velocity (moving)
-    	if self.vel.lengthSq() > 0.00000001:
-    		self.heading = self.vel.get_normalised()
-    		self.side = self.heading.perp()
+        # update heading is non-zero velocity (moving)
+        if self.vel.lengthSq() > 0.00000001:
+            self.heading = self.vel.get_normalised()
+            self.side = self.heading.perp()
     
-    	# treat world as continuous space - wrap new position if needed
-    	self.world.wrap_around(self.pos)
+        # treat world as continuous space - wrap new position if needed
+        self.world.wrap_around(self.pos)
 
-    	if self.collided():
-    		self.pos = pos
-    		self.accel = accel
-    		self.vel = vel
-    		self.force = force
+        if self.collided():
+            self.pos = pos
+            self.accel = accel
+            self.vel = vel
+            self.force = force
 
-    	    # update heading is non-zero velocity (moving)
-    		if self.vel.lengthSq() > 0.00000001:
-    			self.heading = self.vel.get_normalised()
-    			self.side = self.heading.perp()
+            # update heading is non-zero velocity (moving)
+            if self.vel.lengthSq() > 0.00000001:
+                self.heading = self.vel.get_normalised()
+                self.side = self.heading.perp()
         
-    	    # treat world as continuous space - wrap new position if needed
-    		self.world.wrap_around(self.pos)
+            # treat world as continuous space - wrap new position if needed
+            self.world.wrap_around(self.pos)
 
     def calculate(self, delta):
         # reset the steering force
@@ -221,80 +225,53 @@ class Agent(object):
         return force
 
     def calculate_target(self, delta):
-    	if self.mode == 'Pacing' or self.mode == 'Evading':
-    		avoid = self.avoid_projectiles(self.world.projectiles)
-    		if avoid.length() > 0:
-    			print('dodging projectile')
-    			return avoid
+        # if self.mode == 'Pacing' or self.mode == 'Evading':
+        #     avoid = self.avoid_projectiles(self.world.projectiles)
+        #     if avoid.length() > 0:
+        #         print('dodging projectile')
+        #         return avoid
 
-    		if self.mode == 'Pacing':
-    			return self.pace(delta)
-    		elif self.mode == 'Evading':
-    			if self.world.obstacles_enabled:
-    				return self.hide(self.world.shooter, self.world.hiding_spots, delta)
-    			else:
-    				return self.flee(self.world.shooter.pos, delta)
+        #     if self.mode == 'Pacing':
+        #         return self.pace(delta)
+        #     elif self.mode == 'Evading':
+        #         if self.world.obstacles_enabled:
+        #             return self.hide(self.world.shooter, self.world.hiding_spots, delta)
+        #         else:
+        #             return self.flee(self.world.shooter.pos, delta)
 
-    	elif self.vel.length() > 0:
-    		return self.vel * -1
+        # elif self.vel.length() > 0:
+        #     return self.vel * -1
 
-    		return Vector2D(0,0)
+        return Vector2D(0,0)
 
     def calculate_shooter(self, delta):
-    	self.update_fov(self.world.obstacles, self.world.agents)
+        if self.mode == 'Patrol':
+            return self.follow_path()
+        elif self.mode == 'Attack':
+            if self.world.obstacles_enabled:
+                return self.hunt(self.world.target, delta)
+            else:
+                return self.seek(self.world.target.pos)
 
-    	if self.world.target.mode == 'Evading':
-    		if self.world.obstacles_enabled:
-    			return self.hunt(self.world.target, delta)
-    		else:
-    			return self.seek(self.world.target.pos)
-
-    	return Vector2D(0,0)
+        return Vector2D(0,0)
 
     def render(self, color=None):
-        if self.show_avoidance or self.agent_type == 'target':
-            if self.obst_detected:
-                egi.set_pen_color(name='RED')
-            else:
-                egi.set_pen_color(name='LIGHT_BLUE')
-            egi.circle(self.pos, self.avoid_radius)
+        # render obstacle avoidance
+        if self.obst_detected:
+            egi.set_pen_color(name='RED')
+        else:
+            egi.set_pen_color(name='LIGHT_BLUE')
 
-            if self.sensor_obst_detected:
-                egi.set_pen_color(name='RED')
-            else:
-                egi.set_pen_color(name='LIGHT_BLUE')
-            egi.circle(self.sensor_pos, self.avoid_radius)
+        egi.circle(self.pos, self.avoid_radius)
 
-        # # draw the path if it exists and the mode is follow
-        # if self.mode == 'follow_path':
-        #     self.path.render()
-        
-        # # draw the ship according to its status if pursuing
-        # elif self.world.agent_mode == 'pursuit':
-        #   if self.mode == 'pursuit':
-        #       egi.set_pen_color(name='RED')
-        #   else:
-        #       egi.set_pen_color(name='WHITE')
-        
-        #el
+        if self.sensor_obst_detected:
+            egi.set_pen_color(name='RED')
+        else:
+            egi.set_pen_color(name='LIGHT_BLUE')
 
-        # # draw wander info if wandering
-        # if self.mode == 'wander' or self.wandering:
-        #     # calculate the centre of the wander circle in front of the agent
-        #     wnd_pos = Vector2D(self.wander_dist, 0)
-        #     wld_pos = self.world.transform_point(wnd_pos, self.pos, self.heading, self.side)
+        egi.circle(self.sensor_pos, self.avoid_radius)
 
-        #     # draw the wander circle
-        #     egi.green_pen()
-        #     egi.circle(wld_pos, self.wander_radius)
-
-        #     # draw the wander target (little circle on the big circle)
-        #     egi.red_pen()
-        #     wnd_pos = (self.wander_target + Vector2D(self.wander_dist, 0))
-        #     wld_pos = self.world.transform_point(wnd_pos, self.pos, self.heading, self.side)
-        #     egi.circle(wld_pos, 3)
-
-        # draw the ship 
+        #render agent
         egi.set_stroke(2)
 
         if self.hit_time is not None:
@@ -303,33 +280,37 @@ class Agent(object):
             egi.orange_pen()
 
         if self.agent_type == 'target':
-        	egi.circle(self.pos, self.radius)
-        	egi.circle(self.pos, self.radius * 2 / 3)
-        	egi.circle(self.pos, self.radius / 3)
-        	egi.cross(self.pos, self.radius)
+            egi.circle(self.pos, self.radius)
+            egi.circle(self.pos, self.radius * 2 / 3)
+            egi.circle(self.pos, self.radius / 3)
+            egi.cross(self.pos, self.radius)
 
-        	if self.mode == 'Pacing':
-        		egi.red_pen()
-        		egi.cross(self.current_pt, 10)
-        		egi.circle(self.current_pt, 10)
-        		egi.cross(self.next_pt, 10)
-        else:
+            # render pacing markers
+            if self.mode == 'Pacing':
+                egi.red_pen()
+                egi.cross(self.current_pt, 10)
+                egi.circle(self.current_pt, 10)
+                egi.cross(self.next_pt, 10)
+        elif self.agent_type == 'shooter':
             egi.circle(self.pos, self.radius)
 
-            if self.world.target.mode == 'Evading':
-                egi.set_pen_color(name='AQUA')
-                egi.circle(self.pos, self.effective_range)
+            self.path.render()
 
-                if self.world.obstacles_enabled and len(self.fov_markers) >= 3:
-                    # draw the field of view
-                    if self.see_target:
-                        egi.red_pen()
-                    else:
-                        egi.set_pen_color(name='WHITE')
-                    egi.circle(self.pos, self.hunt_dist)
-                    egi.line(pos1=self.pos, pos2=self.fov_markers[0])
-                    egi.line(pos1=self.pos, pos2=self.fov_markers[2])
-                    egi.line(pos1=self.fov_markers[0], pos2=self.fov_markers[2])
+            # render weapon's effective range
+            egi.set_pen_color(name='AQUA')
+            egi.circle(self.pos, self.effective_range)
+
+            if len(self.fov_markers) >= 6:
+                # render field of view
+                if self.mode == 'Attack':
+                    egi.red_pen()
+                else:
+                    egi.set_pen_color(name='WHITE')
+
+                egi.circle(self.pos, self.hunt_dist)
+                egi.line(pos1=self.fov_markers[0], pos2=self.fov_markers[1])
+                egi.line(pos1=self.fov_markers[1], pos2=self.fov_markers[5])
+                egi.line(pos1=self.fov_markers[5], pos2=self.fov_markers[4])
 
         # add some handy debug drawing info lines - force and velocity
         if self.show_info:
@@ -519,15 +500,11 @@ class Agent(object):
         prioritise_visible = False
         prioritise_close = False
 
-        self.see_target = True
-
         hunting = []
         visible = []
         close = []
-        dist_multiplier = 1.25
 
-        if self.hunt_dist < (self.avoid_radius + evader.avoid_radius) * dist_multiplier - evader.avoid_radius:
-        	self.hunt_dist = (self.avoid_radius + evader.avoid_radius) * dist_multiplier - evader.avoid_radius
+        self.update_hunt_distance(evader)
 
         if self.distance(evader.pos) < self.hunt_dist + evader.avoid_radius:
             close.append(evader)
@@ -554,7 +531,6 @@ class Agent(object):
         else:
             hunting = close + visible
             if len(hunting) == 0:
-                self.see_target = False
                 return self.wander(delta)
             else:
                 if len(hunting) > 1:
@@ -562,31 +538,31 @@ class Agent(object):
                 return self.pursuit(hunting[0])
 
     def pace(self, delta):
-    	threshold = 10
+        threshold = 10
 
-    	if self.current_pt is not None and self.next_pt is not None:
-    		if self.distance(self.current_pt) < threshold:
-    			temp = self.current_pt
-    			self.current_pt = self.next_pt
-    			self.next_pt = temp
+        if self.current_pt is not None and self.next_pt is not None:
+            if self.distance(self.current_pt) < threshold:
+                temp = self.current_pt
+                self.current_pt = self.next_pt
+                self.next_pt = temp
 
-    		return self.arrive(self.current_pt, 'fast')
-    	else:
-    		return Vector2D()
+            return self.arrive(self.current_pt, 'fast')
+        else:
+            return Vector2D()
 
     def pursuit(self, evader):
-    	''' this behaviour predicts where an agent will be in time T and seeks
-    		towards that point to intercept it. '''
-    	to_evader = evader.pos - self.pos
-    	relative_heading = self.heading.dot(evader.heading)
+        ''' this behaviour predicts where an agent will be in time T and seeks
+            towards that point to intercept it. '''
+        to_evader = evader.pos - self.pos
+        relative_heading = self.heading.dot(evader.heading)
 
-    	if (to_evader.dot(self.heading) > 0) and (relative_heading < 0.95):
-    		return self.seek(evader.pos)
+        if (to_evader.dot(self.heading) > 0) and (relative_heading < 0.95):
+            return self.seek(evader.pos)
 
-    	future_time = to_evader.length()/(self.max_speed + evader.speed())
-    	#future_time += (1 - self.heading.dot(evader.vel)) * - self.side.length()
-    	future_pos = evader.pos + evader.vel * future_time
-    	return self.seek(future_pos)
+        future_time = to_evader.length()/(self.max_speed + evader.speed())
+        #future_time += (1 - self.heading.dot(evader.vel)) * - self.side.length()
+        future_pos = evader.pos + evader.vel * future_time
+        return self.seek(future_pos)
 
     def seek(self, target_pos):
         ''' move towards target position '''
@@ -618,115 +594,115 @@ class Agent(object):
     # Marksmanship Methods ------------------------------------------------------------------------
 
     def get_future_pos_with_accel(self, start_vel, accel, time):
-    	displacement = (start_vel * time) + (0.5 * accel * time * time) #d = ut + 0.5at^2
-    	return displacement 
+        displacement = (start_vel * time) + (0.5 * accel * time * time) #d = ut + 0.5at^2
+        return displacement 
 
     def shoot(self, target):
-    	slow_speed = 250
-    	fast_speed = 1000
-    	mod = 50
+        slow_speed = 250
+        fast_speed = 1000
+        mod = 50
 
-    	# check if any projectiles are still pooled
-    	if len(self.projectile_pool) > 0:
-    		# get speed according to weapon type
-    		if self.weapon == 'Rocket' or self.weapon == 'Hand Grenade':
-    			p_speed = slow_speed
-    		else:
-    			p_speed = fast_speed
+        # check if any projectiles are still pooled
+        if len(self.projectile_pool) > 0:
+            # get speed according to weapon type
+            if self.weapon == 'Rocket' or self.weapon == 'Hand Grenade':
+                p_speed = slow_speed
+            else:
+                p_speed = fast_speed
 
-    		print("stationary: " + str(target.pos))
+            print("stationary: " + str(target.pos))
 
-    		if target.mode == 'Stationary':
-    			target_pos = target.pos.copy()
-    		else:
-    			''' this behaviour predicts where an agent will be in time T and seeks
-    			towards that point to intercept it. '''
-    			to_target = target.pos - self.pos
-    			future_target_pos = target.pos.copy()
-    			dist = to_target.length()
-    			loop = True
-    			loop_count = 0
+            if target.mode == 'Stationary':
+                target_pos = target.pos.copy()
+            else:
+                ''' this behaviour predicts where an agent will be in time T and seeks
+                towards that point to intercept it. '''
+                to_target = target.pos - self.pos
+                future_target_pos = target.pos.copy()
+                dist = to_target.length()
+                loop = True
+                loop_count = 0
 
-    			# loops its predictive logic several times to get progressively better predictions. If it would
-    			# get to an iteration where the distance between the projectile and target would be worse than
-    			# on the last iteration, it uses the last iteration
-    			while loop:
-    				loop_count += 1
-    				future_time = (future_target_pos - self.pos).length()/(p_speed)		# first loop: current target.pos
-    				future_target_pos = target.pos + self.get_future_pos_with_accel(target.vel, target.accel, future_time)
+                # loops its predictive logic several times to get progressively better predictions. If it would
+                # get to an iteration where the distance between the projectile and target would be worse than
+                # on the last iteration, it uses the last iteration
+                while loop:
+                    loop_count += 1
+                    future_time = (future_target_pos - self.pos).length()/(p_speed)        # first loop: current target.pos
+                    future_target_pos = target.pos + self.get_future_pos_with_accel(target.vel, target.accel, future_time)
 
-    				# if it's not evading, it's not gonna move outside the bounds of the window
-    				if target.mode == 'Evading':
-    					self.world.wrap_around(future_target_pos)
+                    # if it's not evading, it's not gonna move outside the bounds of the window
+                    if target.mode == 'Evading':
+                        self.world.wrap_around(future_target_pos)
 
-    				vel_to_future_pos = (future_target_pos - self.pos).normalise() * p_speed
-    				future_self_pos = self.pos + vel_to_future_pos * future_time
-    				new_dist = (future_target_pos - future_self_pos).length()
+                    vel_to_future_pos = (future_target_pos - self.pos).normalise() * p_speed
+                    future_self_pos = self.pos + vel_to_future_pos * future_time
+                    new_dist = (future_target_pos - future_self_pos).length()
 
-    				# keep iterating?
-    				if new_dist < dist: 
-    					dist = new_dist
+                    # keep iterating?
+                    if new_dist < dist: 
+                        dist = new_dist
 
-    					# is it's predicted pos close enough?
-    					if dist < target.radius * 0.1:
-    						print('dist between predicted positions less than 0.1 times the targets radius')
-    						loop = False
+                        # is it's predicted pos close enough?
+                        if dist < target.radius * 0.1:
+                            print('dist between predicted positions less than 0.1 times the targets radius')
+                            loop = False
 
-    				else:
-    					loop = False
+                    else:
+                        loop = False
 
-    			target_pos = future_target_pos
-    			print("predictive: " + str(target_pos))
-    			print("loop count: " + str(loop_count))
+                target_pos = future_target_pos
+                print("predictive: " + str(target_pos))
+                print("loop count: " + str(loop_count))
 
-    		if self.world.target.mode == 'Evading' and self.distance(target_pos) > self.effective_range + target.radius:
-    			return
+            if self.world.target.mode == 'Evading' and self.distance(target_pos) > self.effective_range + target.radius:
+                return
 
-    		if self.weapon == 'Shotgun':
-    			# shot gun scatters multiple projectiles
-    			loop = 5
-    		else:
-    			# everything else fires one projectile at a time
-    			loop = 1
+            if self.weapon == 'Shotgun':
+                # shot gun scatters multiple projectiles
+                loop = 5
+            else:
+                # everything else fires one projectile at a time
+                loop = 1
 
-    		while loop > 0:
-    			# affect accuracy if using an inaccurate weapon
-    			if self.weapon == 'Hand Gun' or self.weapon == 'Hand Grenade' or self.weapon == 'Shotgun':
-    				target_pos.x = int(randrange(int(target_pos.x - mod), int(target_pos.x + mod)))
-    				target_pos.y = int(randrange(int(target_pos.y - mod), int(target_pos.y + mod)))
+            while loop > 0:
+                # affect accuracy if using an inaccurate weapon
+                if self.weapon == 'Hand Gun' or self.weapon == 'Hand Grenade' or self.weapon == 'Shotgun':
+                    target_pos.x = int(randrange(int(target_pos.x - mod), int(target_pos.x + mod)))
+                    target_pos.y = int(randrange(int(target_pos.y - mod), int(target_pos.y + mod)))
 
-    			# calculate velocity
-    			p_heading = (target_pos - self.pos).normalise()
-    			p_vel = p_heading * p_speed
+                # calculate velocity
+                p_heading = (target_pos - self.pos).normalise()
+                p_vel = p_heading * p_speed
 
-    			# set up and shoot projectile
-    			p = self.projectile_pool[0]
-    			self.projectile_pool.remove(p)
-    			p.vel = p_vel
-    			p.pos = self.pos.copy()
-    			p.p_type = self.weapon
+                # set up and shoot projectile
+                p = self.projectile_pool[0]
+                self.projectile_pool.remove(p)
+                p.vel = p_vel
+                p.pos = self.pos.copy()
+                p.p_type = self.weapon
 
-    			# where's the grenade gonna land?
-    			if self.weapon == 'Hand Grenade':
-    				p.target = target_pos
+                # where's the grenade gonna land?
+                if self.weapon == 'Hand Grenade':
+                    p.target = target_pos
 
-    			# add new projectile
-    			self.world.projectiles.append(p)
+                # add new projectile
+                self.world.projectiles.append(p)
 
-    			loop -= 1
+                loop -= 1
 
     # Additional assistive methods used by Agent --------------------------------------------------
 
     def collided(self):
         if self.world.obstacles_enabled:
-        	for obstacle in self.world.obstacles:
-	            if self.distance(obstacle.pos) < self.radius + obstacle.radius:
-	                return True
+            for obstacle in self.world.obstacles:
+                if self.distance(obstacle.pos) < self.radius + obstacle.radius:
+                    return True
 
         if self.world.walls_enabled:
-	        for wall in self.world.walls:
-	            if wall.distance(self.pos) < self.radius:
-	                return True
+            for wall in self.world.walls:
+                if wall.distance(self.pos) < self.radius:
+                    return True
 
         for agent in self.world.agents:
             if agent is not self and self.distance(agent.pos) < self.radius + agent.radius:
@@ -739,19 +715,19 @@ class Agent(object):
         dist = to_target.length()
         return dist
 
-	    # def eat(self, evaders):
-	    #     to_eat = []
+        # def eat(self, evaders):
+        #     to_eat = []
 
-	    #     for evader in evaders:
-	    #         if self.distance(evader.pos) < self.avoid_radius + evader.avoid_radius:
-	    #             for marker in self.fov_markers:
-	    #                 if evader.distance(marker) < evader.avoid_radius:
-	    #                     to_eat.append(evader)
+        #     for evader in evaders:
+        #         if self.distance(evader.pos) < self.avoid_radius + evader.avoid_radius:
+        #             for marker in self.fov_markers:
+        #                 if evader.distance(marker) < evader.avoid_radius:
+        #                     to_eat.append(evader)
 
-	    #     for evader in to_eat:
-	    #         self.world.destroy(evader)
+        #     for evader in to_eat:
+        #         self.world.destroy(evader)
 
-	    #     del to_eat
+        #     del to_eat
 
     def get_best_hiding_spot(self, spots, hunter):
         # sort and / or rank the hiding spots
@@ -790,7 +766,7 @@ class Agent(object):
 
             # increment spots' rank if moving to them would require crossing the hunter's line of sight
             for spot in spots:
-                if self.intersect(self.pos, spot.pos, hunter.pos, hunter.fov_markers[1]):
+                if self.intersect(self.pos, spot.pos, hunter.fov_markers[0], hunter.fov_markers[1]) or self.intersect(self.pos, spot.pos, hunter.fov_markers[2], hunter.fov_markers[3]) or self.intersect(self.pos, spot.pos, hunter.fov_markers[4], hunter.fov_markers[5]):
                     spot.rank += 999999999
 
             # sort spots by rank, lowest (index = 0) to highest (index = len - 1) 
@@ -801,6 +777,12 @@ class Agent(object):
                 return spots[i]
 
         return None
+
+    def update_hunt_dist(self, evader):
+        dist_multiplier = 1.25
+
+        if self.hunt_dist < (self.avoid_radius + evader.avoid_radius) * dist_multiplier - evader.avoid_radius:
+            self.hunt_dist = (self.avoid_radius + evader.avoid_radius) * dist_multiplier - evader.avoid_radius
 
     def get_random_valid_position(self, max_x, max_y, obstacles, agents):
         valid = False
@@ -878,48 +860,48 @@ class Agent(object):
         return False # Doesn't fall in any of the above cases 
 
     def next_movement_type(self):
-    	max_index = 2
-    	self.mode_index += 1
+        max_index = 2
+        self.mode_index += 1
 
-    	if self.mode_index > max_index:
-    		self.mode_index = 0
+        if self.mode_index > max_index:
+            self.mode_index = 0
     
-    	if self.mode_index == 0:
-    		self.mode = 'Stationary'
-    	elif self.mode_index == 1:
-    		self.mode = 'Pacing'
-    	elif self.mode_index == 2:
-    		self.mode = 'Evading'
+        if self.mode_index == 0:
+            self.mode = 'Stationary'
+        elif self.mode_index == 1:
+            self.mode = 'Pacing'
+        elif self.mode_index == 2:
+            self.mode = 'Evading'
 
     def next_weapon(self):
-    	max_index = 4
-    	self.weapon_index += 1
+        max_index = 4
+        self.weapon_index += 1
 
-    	if self.weapon_index > max_index:
-    		self.weapon_index = 0
+        if self.weapon_index > max_index:
+            self.weapon_index = 0
 
-    	# rate of fire numbers borrowed from weapons in Halo CE where possible and modified for
-    	# how fast I'd probably shoot with them
-    	if self.weapon_index == 0:
-    		self.weapon = 'Rifle'
-    		self.cooldown = 1.5 # max rpm of 0.5 sec / round 
-    		self.effective_range = 10 * 2300 # effective range 2300 m
-    	elif self.weapon_index == 1:
-    		self.weapon = 'Rocket'
-    		self.cooldown = 1.5 # max rpm of 0.6 sec / round 
-    		self.effective_range = 5 * 160 # estimated effective range 160 m
-    	elif self.weapon_index == 2:
-    		self.weapon = 'Hand Gun'
-    		self.cooldown = 0.286 # max rpm
-    		self.effective_range = 5 * 122.7 # effective range 122.7 m
-    	elif self.weapon_index == 3:
-    		self.weapon = 'Hand Grenade'
-    		self.cooldown = 2     # estimated max rpm of 2 sec / round 
-    		self.effective_range = 5 * 75 # estimated effective range 75 m
-    	elif self.weapon_index == 4:
-    		self.weapon = 'Shotgun'
-    		self.cooldown = 1   # max rpm of 1 sec / round 
-    		self.effective_range = 30 * 5 # estimated effective range 5 m	
+        # rate of fire numbers borrowed from weapons in Halo CE where possible and modified for
+        # how fast I'd probably shoot with them
+        if self.weapon_index == 0:
+            self.weapon = 'Rifle'
+            self.cooldown = 1.5 # max rpm of 0.5 sec / round 
+            self.effective_range = 10 * 2300 # effective range 2300 m
+        elif self.weapon_index == 1:
+            self.weapon = 'Rocket'
+            self.cooldown = 1.5 # max rpm of 0.6 sec / round 
+            self.effective_range = 5 * 160 # estimated effective range 160 m
+        elif self.weapon_index == 2:
+            self.weapon = 'Hand Gun'
+            self.cooldown = 0.286 # max rpm
+            self.effective_range = 5 * 122.7 # effective range 122.7 m
+        elif self.weapon_index == 3:
+            self.weapon = 'Hand Grenade'
+            self.cooldown = 2     # estimated max rpm of 2 sec / round 
+            self.effective_range = 5 * 75 # estimated effective range 75 m
+        elif self.weapon_index == 4:
+            self.weapon = 'Shotgun'
+            self.cooldown = 1   # max rpm of 1 sec / round 
+            self.effective_range = 30 * 5 # estimated effective range 5 m    
 
     def randomise_path(self):
         num_pts = 4
@@ -936,38 +918,62 @@ class Agent(object):
         max_fov_length = self.avoid_radius * 20
         fov_length = self.radius
         fovm = Vector2D()
+        fov_marker_left = Vector2D()
+        fov_marker = Vector2D()
         fov_marker = Vector2D()
         markers = []
 
+        offset = 5 * self.scale_scalar
+
         if self.world.obstacles_enabled:
-        	objects = obstacles + agents
+            objects = obstacles + agents
         else:
-        	objects = agents.copy()
+            objects = agents.copy()
 
         if self in objects:
             objects.remove(self)
 
         while not crossed_obj and fov_length < max_fov_length: 
+            fovm = Vector2D(fov_length, -offset)
+            markers.append(self.world.transform_point(fovm, self.pos, self.heading, self.side))
+            fovm = Vector2D(fov_length, -offset * 2 / 3)
+            markers.append(self.world.transform_point(fovm, self.pos, self.heading, self.side))
+            fovm = Vector2D(fov_length, -offset / 3)
+            markers.append(self.world.transform_point(fovm, self.pos, self.heading, self.side))
             fovm = Vector2D(fov_length, 0)
-            fov_marker = self.world.transform_point(fovm, self.pos, self.heading, self.side) 
+            markers.append(self.world.transform_point(fovm, self.pos, self.heading, self.side))
+            fovm = Vector2D(fov_length, offset / 3)
+            markers.append(self.world.transform_point(fovm, self.pos, self.heading, self.side))
+            fovm = Vector2D(fov_length, offset * 2 / 3)
+            markers.append(self.world.transform_point(fovm, self.pos, self.heading, self.side))
+            fovm = Vector2D(fov_length, offset)
+            markers.append(self.world.transform_point(fovm, self.pos, self.heading, self.side))
             
             for obj in objects:
-                if obj.distance(fov_marker) < obj.radius:
-                    crossed_obj = True
-                    overshoot = obj.radius - obj.distance(fov_marker)
+                for marker in markers:
+                    if obj.distance(marker) < obj.radius:
+                        crossed_obj = True
+                        overshoot = obj.radius - obj.distance(fov_marker)
+
+                        if obj == self.world.target:
+                            self.see_target = True
 
             if not crossed_obj:
                 fov_length += self.radius
             else:
                 fov_length -= overshoot
 
+        markers = []
         fov_length = min(fov_length, max_fov_length)
         fovm = Vector2D(fov_length, 0)
-        offset = 5 * self.scale_scalar
+        left = Vector2D(0, -self.hunt_dist)
         m_left = Vector2D(fov_length, -offset)
+        right = Vector2D (0, self.hunt_dist)
         m_right = Vector2D(fov_length, offset)
+        markers.append(self.world.transform_point(left, self.pos, self.heading, self.side))
         markers.append(self.world.transform_point(m_left, self.pos, self.heading, self.side))
+        markers.append(self.pos)
         markers.append(self.world.transform_point(fovm, self.pos, self.heading, self.side))
+        markers.append(self.world.transform_point(right, self.pos, self.heading, self.side))
         markers.append(self.world.transform_point(m_right, self.pos, self.heading, self.side))
         self.fov_markers = markers
-

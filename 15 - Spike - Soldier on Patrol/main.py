@@ -74,7 +74,16 @@ def on_key_press(symbol, modifiers):
             obstacle.randomise_position()
     # scroll through target settings
     elif symbol == KEY.T:
-        world.target.next_movement_type()
+        if world.target == None:
+            world.target = Agent(world=world, agent_type='target', mode='Stationary')
+            world.agents.append(world.target)
+            world.target.pos = Vector2D(max_x /2, max_y / 2)
+            world.target.heading = (world.shooter.pos - world.target.pos).get_normalised()
+            world.target.side = world.target.heading.perp()
+            world.target.current_pt = Vector2D(world.target.pos.x, max_y * 0.25)
+            world.target.next_pt = Vector2D(world.target.pos.x, max_y * 0.75)
+        else:
+            world.target.next_movement_type()
     # scroll through shooter weapons
     elif symbol == KEY.W:
         world.shooter.next_weapon()
