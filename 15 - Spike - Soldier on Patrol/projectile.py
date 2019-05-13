@@ -16,7 +16,7 @@ from datetime import datetime, time, timedelta
 class Projectile(object):
     # Agent Setup ---------------------------------------------------------------
 
-    def __init__(self, world=None, scale=30.0, radius=3.0, pos=Vector2D(0,0), vel=Vector2D(0,0), target=None, shooter=None, p_type=None):
+    def __init__(self, world=None, scale=30.0, radius=3.0, pos=Vector2D(0,0), vel=Vector2D(0,0), target=None, shooter=None, p_type=None, damage=None):
         # keep a reference to the world object
         self.world = world
 
@@ -28,6 +28,7 @@ class Projectile(object):
         self.radius = radius
         self.shooter = shooter
         self.p_type = p_type
+        self.damage = damage
 
         # scaling variables
         self.scale_scalar = scale
@@ -61,6 +62,7 @@ class Projectile(object):
                     for collision in collided:
                         if collision is not self.target and collision in self.world.agents:
                             collision.hit_time = datetime.now()
+                            collision.health -= self.damage
 
                     self.target = None
                     self.exploding = True
@@ -69,6 +71,7 @@ class Projectile(object):
                     for collision in collided:
                         if collision in self.world.agents:
                             collision.hit_time = datetime.now()
+                            collision.health -= self.damage
                     
                     self.world.destroy_projectile(self)
         else:
@@ -80,6 +83,7 @@ class Projectile(object):
                 for collision in collided:
                     if collision in self.world.agents:
                         collision.hit_time = datetime.now()
+                        collision.health -= self.damage
 
             if self.explosion_multiplier == 1 and (datetime.now() - self.explosion_time).total_seconds() > 1:
                 self.explosion_multiplier = -5
@@ -104,9 +108,10 @@ class Projectile(object):
     def collided(self):
         collided = []
 
-        for agent in self.world.agents:
-            if (self.left_barrel or agent is not self.shooter) and self.distance(agent.pos) < self.radius + agent.radius:
-                collided.append(agent)
+        if len(self.world.agents) > 0:
+            for agent in self.world.agents:
+                if (self.left_barrel or agent is not self.shooter) and self.distance(agent.pos) < self.radius + agent.radius:
+                    collided.append(agent)
 
         if self.world.walls_enabled:
             for wall in self.world.walls:

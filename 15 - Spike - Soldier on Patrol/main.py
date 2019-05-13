@@ -27,6 +27,7 @@ from world import World
 from agent import Agent, AGENT_MODES  # Agent with seek, arrive, flee and pursuit
 from obstacle import Obstacle
 from wall import Wall
+from path import Path
 
 NUM_KEYS = {
     KEY._0: 0,
@@ -53,37 +54,42 @@ def on_key_press(symbol, modifiers):
         for agent in world.agents:
             agent.show_avoidance = not agent.show_avoidance
     # toggle walls on and off
-    elif symbol == KEY.B:
-        world.walls_enabled = not world.walls_enabled
+    # elif symbol == KEY.B:
+    #     world.walls_enabled = not world.walls_enabled
     # Toggle debug force line info on the agent
     elif symbol == KEY.I:
         for agent in world.agents:
             agent.show_info = not agent.show_info
     # create a new obstacle of obstacles are enabled
-    elif symbol == KEY.N and world.obstacles_enabled:
-        world.obstacles.append(Obstacle(world=world))
+    # elif symbol == KEY.N and world.obstacles_enabled:
+    #     world.obstacles.append(Obstacle(world=world))
     # toggle obstacles on and off
-    elif symbol == KEY.O:
-        world.obstacles_enabled = not world.obstacles_enabled
+    # elif symbol == KEY.O:
+    #     world.obstacles_enabled = not world.obstacles_enabled
     # Pause / unpause the game
     elif symbol == KEY.P:
         world.paused = not world.paused
     # randomise the positions of the obstacles
-    elif symbol == KEY.R:
-        for obstacle in world.obstacles:
-            obstacle.randomise_position()
-    # scroll through target settings
+    # elif symbol == KEY.R:
+    #     for obstacle in world.obstacles:
+    #         obstacle.randomise_position()
+    # respawn dead shooter
+    elif symbol == KEY.S:
+        if world.shooter == None:
+            world.shooter = Agent(world=world, agent_type='shooter', weapon='Rifle')
+            world.agents.append(world.shooter)
+            world.shooter.path = Path(num_pts=9, looped=True)
+            world.shooter.heading = Vector2D(0,1)
+            world.shooter.side = world.shooter.heading.perp()
+            world.shooter.path.recreate_preset_path(maxx=world.cx, maxy=world.cy)
+            world.shooter.update_hunt_dist()
+    # respawn dead target
     elif symbol == KEY.T:
         if world.target == None:
-            world.target = Agent(world=world, agent_type='target', mode='Stationary')
+            world.target = Agent(world=world, agent_type='target')
             world.agents.append(world.target)
-            world.target.pos = Vector2D(max_x /2, max_y / 2)
-            world.target.heading = (world.shooter.pos - world.target.pos).get_normalised()
+            world.target.heading = Vector2D(0,1)
             world.target.side = world.target.heading.perp()
-            world.target.current_pt = Vector2D(world.target.pos.x, max_y * 0.25)
-            world.target.next_pt = Vector2D(world.target.pos.x, max_y * 0.75)
-        else:
-            world.target.next_movement_type()
     # scroll through shooter weapons
     elif symbol == KEY.W:
         world.shooter.next_weapon()

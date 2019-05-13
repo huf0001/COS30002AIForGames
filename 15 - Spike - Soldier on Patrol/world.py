@@ -35,8 +35,8 @@ class World(object):
 
     def update(self, delta):
         if not self.paused:
-            if self.target.sub_mode == 'Evading':
-                self.hiding_spots = self.get_hiding_spots(self.shooter, self.obstacles)
+            # if self.target.movement_mode == 'Escape':
+            #     self.hiding_spots = self.get_hiding_spots(self.shooter, self.obstacles)
 
             for agent in self.agents:
                 agent.update(delta)
@@ -62,22 +62,46 @@ class World(object):
         if self.showinfo:
             infotext = ', '.join(set(agent.agent_type for agent in self.agents))
             egi.white_pen()
-            egi.text_at_pos(0, 0, 'Shooter Weapon: ' + self.shooter.weapon + '. Target Motion: ' + self.target.mode + '.')
 
-    def destroy(self, agent):
+            if self.shooter is not None:
+                health_status = 'Soldier: ' + str(self.shooter.health) + ' HP. '
+                agent_status = 'Soldier Status: ' + self.shooter.movement_mode + ', ' + self.shooter.combat_mode + '. Soldier Weapon: ' + self.shooter.weapon + ', ' + str(self.shooter.rounds_left_in_magazine) + '/' + str(self.shooter.magazine_size) + '. '
+            else:
+                health_status = 'Soldier: 0 HP. '
+                agent_status = 'Soldier Status: Dead. Soldier Weapon: N/A. '
+
+            if self.target is not None:
+                health_status = health_status + 'Target: ' + str(self.target.health) + ' HP.'
+                agent_status = agent_status + 'Target Status: ' + self.target.movement_mode + '.'
+            else:
+                health_status = health_status + 'Target: 0 HP.'
+                agent_status = agent_status + 'Target Status: Dead.'
+
+            egi.text_at_pos(0, 20, health_status)
+            egi.text_at_pos(0, 0, agent_status)
+
+    def destroy_agent(self, agent):
         if agent in self.agents:
             self.agents.remove(agent)
 
-        if agent in self.evaders:
-            self.evaders.remove(agent)
+        if agent is self.shooter:
+            self.shooter = None
+
+            for projectile in self.projectiles:
+                projectile.shooter = None
+                projectile.left_barrel = True
         
-        if agent in self.hunters:
-            self.hunters.remove(agent)
+        if agent is self.target:
+            self.target = None
 
         del agent
 
     def destroy_projectile(self, projectile):
-        print('destroying projectile. projectile pool length: ' + str(len(projectile.shooter.projectile_pool)))
+        if projectile.shooter is not None:
+            print('Destroying projectile. Projectile pool length: ' + str(len(projectile.shooter.projectile_pool)) + '.')
+        else:
+            print('Destroying projectile. No soldier projectile pool to return to.')
+
         # remove projectile from world so that it does not render or update
         if projectile in self.projectiles:
             self.projectiles.remove(projectile)
@@ -87,9 +111,15 @@ class World(object):
         projectile.target = None
         projectile.p_type = None
         projectile.explosion_time = None
-        projectile.shooter.projectile_pool.append(projectile)
-        print('destroyed projectile. projectile pool length: ' + str(len(projectile.shooter.projectile_pool)))
 
+        if self.shooter is not None:
+            projectile.shooter.projectile_pool.append(projectile)
+            print('Destroyed projectile. Projectile pool length: ' + str(len(projectile.shooter.projectile_pool)))
+        else:
+            print('Destroyed projectile. No soldier, so projectile was deleted from simulation.')
+
+        del projectile
+    
     def get_hiding_spots(self, hunter, obstacles):
         hiding_spots = []
 
@@ -131,18 +161,18 @@ class World(object):
 
     def set_agents(self, max_x, max_y):
         if self.shooter == None:
-            self.shooter = Agent(world=self, agent_type='shooter', mode='Patrol', weapon='Rifle')
+            self.shooter = Agent(world=self, agent_type='shooter', weapon='Rifle')
             self.agents.append(self.shooter)
             self.shooter.path = Path(num_pts=9, looped=True)
+            self.shooter.update_hunt_dist()
         if self.target == None:  
-            self.target = Agent(world=self, agent_type='target', mode='Stationary')
+            self.target = Agent(world=self, agent_type='target')
             self.agents.append(self.target)
 
         self.shooter.pos = Vector2D(max_x * 0.2, max_y * 0.2)
         self.shooter.heading = Vector2D(0,1)
         self.shooter.side = self.shooter.heading.perp()
         self.shooter.path.recreate_preset_path(maxx=self.cx, maxy=self.cy)
-        self.shooter.update_hunt_dist(self.target)
         
         self.target.pos = Vector2D(max_x /2, max_y / 2)
         self.target.heading = (self.shooter.pos - self.target.pos).get_normalised()
