@@ -37,16 +37,19 @@ class Agent(object):
         'fast': 0.3
     }
 
-    def __init__(self, world=None, scale=30.0, mass=1.0, agent_type=None, movement_mode=None, combat_mode=None, weapon=None, speed_limiter=5, radius=30.0, pos=None, path=Path()):
+    def __init__(self, world=None, scale=30.0, mass=1.0, agent_type=None, movement_mode=None, combat_mode=None, weapons=[], speed_limiter=5, radius=30.0, pos=None, path=Path()):
         # keep a reference to the world object
         self.world = world
         self.agent_type = agent_type
         self.movement_mode = movement_mode
         self.combat_mode = combat_mode
-        self.weapon = weapon
-        self.weapon_index = -1 
+        self.weapons = weapons
+        self.ready = False
 
         self.health = 100
+        if self.agent_type == 'shooter':
+            self.health = self.health ** 3
+        self.start_health = 100
 
         # scaling variables
         self.scale_scalar = scale
@@ -68,7 +71,11 @@ class Agent(object):
         self.max_force = 500.0
         self.avoidance_range = 200.0
         self.speed_limiter = speed_limiter
-        self.max_speed = 30 * self.scale_scalar / speed_limiter
+        self.max_speed = 30 * self.scale_scalar / speed_limiter 
+
+        if self.agent_type == 'target':
+            self.max_force = self.max_force * 0.5
+            self.max_speed = self.max_speed * 0.5
 
         # path variables
         self.path = path
@@ -101,27 +108,19 @@ class Agent(object):
         else:
             self.pos = pos
 
-        # projectile variables
-        self.hit_time = None
-
-        self.projectile_pool = []
-        i = 0
-        while i < 200:
-            self.projectile_pool.append(Projectile(world=self.world, shooter=self))
-            i += 1
-
         self.current_pt = None
         self.next_pt = None
 
+        # projectile variables
+        self.hit_time = None
         self.last_shot = datetime.now()
-        self.cooldown = 0
-        self.effective_range = 0
         self.hunt_dist = 0
-        self.damage = 0
-        self.magazine_size = 0
-        self.rounds_left_in_magazine = 0
 
-        self.next_weapon()
+        self.hunger = 0
+        self.last_hunger_ping = None
+
+        if self.agent_type == 'shooter':
+            self.world.change_weapons(self)
 
     # The central logic of the Agent class ------------------------------------------------
 
@@ -147,39 +146,121 @@ class Agent(object):
         self.see_target = False
         self.update_fov(self.world.obstacles, self.world.agents)
 
-        if self.see_target or (self.world.target is not None and self.distance(self.world.target.pos) < self.hunt_dist + self.world.target.radius):
-            self.movement_mode = 'Attack'
+        if not self.hungry() and self.choose_weapon():
+            if self.see_target or (self.world.target is not None and self.distance(self.world.target.pos) < self.hunt_dist + self.world.target.radius):
+                self.movement_mode = 'Attack'
+            else:
+                self.movement_mode = 'Patrol'
 
-        else:
+            if self.weapons[0].rounds_left_in_magazine == 0 and (datetime.now() - self.last_shot).total_seconds() <= self.weapons[0].reload_time:
+                self.combat_mode = 'Reloading'
+            else:
+                if self.weapons[0].rounds_left_in_magazine == 0:
+                    self.weapons[0].rounds_left_in_magazine += self.weapons[0].magazine_size
+                    self.weapons[0].magazines_left -= 1
+
+                if (datetime.now() - self.last_shot).total_seconds() <= self.weapons[0].cooldown:
+                    self.combat_mode = 'Weapon is Loading Next Round'
+                elif self.movement_mode == 'Attack':
+                    self.combat_mode = 'Aiming'
+                elif self.movement_mode == 'Patrol':
+                    self.combat_mode = 'Ready'
+
+            if self.movement_mode == 'Attack' and self.combat_mode == 'Aiming':
+                if len(self.weapons[0].projectile_pool) == 0:
+                    self.combat_mode = 'No Projectiles Pooled'
+                else:
+                    target = self.aim_shot(self.world.target)
+
+                    if target is not None:
+                        self.combat_mode = 'Shooting'
+                        self.last_shot = datetime.now()
+                        self.weapons[0].rounds_left_in_magazine -= 1
+                        self.shoot(target)
+
+        elif self.movement_mode == 'Exchange Weapons' and self.distance(self.world.ammo_station) < self.world.station_size:
+            self.world.change_weapons(self)
+            self.movement_mode = 'Patrol'
+        elif self.movement_mode == 'Get Food' and self.distance(self.world.food_station) < self.world.station_size:
+            self.hunger = 0
             self.movement_mode = 'Patrol'
 
-        # change to work with reload
-        if self.rounds_left_in_magazine == 0 and (datetime.now() - self.last_shot).total_seconds() <= self.reload_time:
-            self.combat_mode = 'Reloading'
-        else:
-            if self.rounds_left_in_magazine == 0:
-                self.rounds_left_in_magazine = self.magazine_size
-
-            if (datetime.now() - self.last_shot).total_seconds() <= self.cooldown:
-                self.combat_mode = 'Weapon is Loading Next Round'
-            elif self.movement_mode == 'Attack':
-                self.combat_mode = 'Aiming'
-            elif self.movement_mode == 'Patrol':
-                self.combat_mode = 'Ready'
 
         self.move(delta)
 
-        if self.movement_mode == 'Attack' and self.combat_mode == 'Aiming':
-            if len(self.projectile_pool) == 0:
-                self.combat_mode = 'No Projectiles Pooled'
-            else:
-                target = self.aim_shot(self.world.target)
+    def hungry(self):
+        if self.hunger >= 50:
+            self.world.destroy_agent(self)
 
-                if target is not None:
-                    self.combat_mode = 'Shooting'
-                    self.last_shot = datetime.now()
-                    self.rounds_left_in_magazine -= 1
-                    self.shoot(target)
+        if self.last_hunger_ping == None:
+            self.last_hunger_ping = datetime.now()
+
+        if (datetime.now() - self.last_hunger_ping).total_seconds() >= 1:
+            self.last_hunger_ping = datetime.now()
+            self.hunger += 1
+
+        if self.movement_mode == 'Get Food':
+            return True
+        elif self.movement_mode == 'Patrol':
+            max_distance = (Vector2D(0,0) - Vector2D(self.world.cx, self.world.cy)).length()
+            max_time = max_distance / self.max_speed
+
+            if (self.hunger + max_time) * 1.1 >= 50:
+                self.movement_mode = 'Get Food'
+                return True
+
+        elif self.movement_mode == 'Attack':
+            current_distance = self.distance(self.world.food_station)
+            current_time = current_distance / self.max_speed
+
+            if (self.hunger + current_time) * 1.1 >= 50:
+                self.movement_mode = 'Get Food'
+                return True
+
+        return False
+
+    def choose_weapon(self):
+        if self.movement_mode == 'Exchange Weapons':
+            return False
+
+        if len(self.weapons) <= 1:
+            self.movement_mode = 'Exchange Weapons'
+            return False
+
+        weapon_0 = self.weapons[0]
+        weapon_1 = self.weapons[1]
+
+        weapon_0_ammo = weapon_0.rounds_left_in_magazine + weapon_0.magazine_size * weapon_0.magazines_left 
+        weapon_1_ammo = weapon_1.rounds_left_in_magazine + weapon_1.magazine_size * weapon_1.magazines_left
+
+        weapon_0_avg_dmg = weapon_0.damage * weapon_0.damage_factor
+        weapon_1_avg_dmg = weapon_1.damage * weapon_1.damage_factor
+
+        if self.world.target is not None:
+            target_health = self.world.target.health
+
+        # check if out of ammo or if patrolling and have insufficient ammo to kill the target
+        if weapon_0_ammo <= 0 and weapon_1_ammo <= 0:
+            self.movement_mode = 'Exchange Weapons'
+            return False
+        elif self.movement_mode == 'Patrol':
+            if self.world.target is not None:
+                if weapon_0_avg_dmg * weapon_0_ammo + weapon_1_avg_dmg * weapon_1_ammo < target_health:
+                    self.movement_mode = 'Exchange Weapons'
+                    return False
+            elif weapon_0_avg_dmg * weapon_0_ammo + weapon_1_avg_dmg * weapon_1_ammo < self.start_health:
+                self.movement_mode = 'Exchange Weapons'
+                return False
+
+        # check if only current weapon is out of ammo
+        if weapon_0_ammo <= 0 and weapon_1_ammo > 0:
+            self.next_weapon()
+        # check if both weapons have ammo, if both weapons' probable damage dealt (accounting for explosive splash damage and multiple shotgun pellets vs fixed damage rifle and hand gun bullets)
+        # would be sufficient to kill the target, and the next weapon deals less damage
+        if self.world.target is not None and weapon_0_ammo > 0 < weapon_1_ammo and weapon_0_avg_dmg > weapon_1_avg_dmg > target_health:
+            self.next_weapon()
+
+        return True
 
     def update_target(self, delta):
         if self.world.shooter is not None and (self.distance(self.world.shooter.pos) < self.avoidance_range or self.world.shooter.movement_mode == 'Attack'):
@@ -270,16 +351,17 @@ class Agent(object):
         return Vector2D(0,0)
 
     def calculate_shooter(self, delta):
-        if self.movement_mode == 'Patrol':
+        if self.movement_mode == 'Exchange Weapons':
+            return self.arrive(self.world.ammo_station, 'slow')
+        elif self.movement_mode == 'Get Food':
+            return self.arrive(self.world.food_station, 'slow')
+        elif self.movement_mode == 'Patrol':
             return self.follow_path()
         elif self.movement_mode == 'Attack':
             if self.world.obstacles_enabled:
                 return self.hunt(self.world.target, delta)
             else:
                 return self.seek(self.world.target.pos)
-        # elif self.movement_mode == 'Stationary':
-        #     if self.vel.length() > 0:
-        #         return -self.vel
 
         return Vector2D(0,0)
 
@@ -311,7 +393,7 @@ class Agent(object):
 
             # render weapon's effective range
             egi.set_pen_color(name='AQUA')
-            egi.circle(self.pos, self.effective_range)
+            egi.circle(self.pos, self.weapons[0].effective_range)
 
             if len(self.fov_markers) >= 6:
                 # render field of view
@@ -624,15 +706,6 @@ class Agent(object):
     # Marksmanship Methods ------------------------------------------------------------------------
 
     def aim_shot(self, target):
-        slow_speed = 250
-        fast_speed = 1000
-
-        # get speed according to weapon type
-        if self.weapon == 'Rocket' or self.weapon == 'Hand Grenade':
-            p_speed = slow_speed
-        else:
-            p_speed = fast_speed
-
         print("stationary: " + str(target.pos))
 
         if target.movement_mode == 'Stationary':
@@ -651,11 +724,11 @@ class Agent(object):
             # on the last iteration, it uses the last iteration
             while loop:
                 loop_count += 1
-                future_time = (future_target_pos - self.pos).length()/(p_speed)        # first loop: current target.pos
+                future_time = (future_target_pos - self.pos).length()/(self.weapons[0].speed)        # first loop: current target.pos
                 future_target_pos = target.pos + self.get_future_pos_with_accel(target.vel, target.accel, future_time)
                 self.world.wrap_around(future_target_pos)
 
-                vel_to_future_pos = (future_target_pos - self.pos).normalise() * p_speed
+                vel_to_future_pos = (future_target_pos - self.pos).normalise() * self.weapons[0].speed
                 future_self_pos = self.pos + vel_to_future_pos * future_time
                 new_dist = (future_target_pos - future_self_pos).length()
 
@@ -675,7 +748,7 @@ class Agent(object):
             print("predictive: " + str(target_pos))
             print("loop count: " + str(loop_count))
 
-        if self.distance(target_pos) <= self.effective_range + target.radius:
+        if self.distance(target_pos) <= self.weapons[0].effective_range + target.radius:
             return target_pos
         else:
             return None
@@ -685,18 +758,9 @@ class Agent(object):
         return displacement 
 
     def shoot(self, target_pos):
-        slow_speed = 250
-        fast_speed = 1000
-        mod = 50
         original_target_pos = target_pos.copy()
 
-        # get speed according to weapon type
-        if self.weapon == 'Rocket' or self.weapon == 'Hand Grenade':
-            p_speed = slow_speed
-        else:
-            p_speed = fast_speed
-
-        if self.weapon == 'Shotgun':
+        if self.weapons[0].name == 'Shotgun':
             # shot gun scatters multiple projectiles
             loop = 5
         else:
@@ -705,30 +769,32 @@ class Agent(object):
 
         while loop > 0:
             # affect accuracy if using an inaccurate weapon
-            if self.weapon == 'Hand Gun' or self.weapon == 'Hand Grenade' or self.weapon == 'Shotgun':
-                target_pos.x = int(randrange(int(original_target_pos.x - mod), int(original_target_pos.x + mod)))
-                target_pos.y = int(randrange(int(original_target_pos.y - mod), int(original_target_pos.y + mod)))
+            if self.weapons[0].accuracy_modifier > 0:
+                target_pos.x = int(randrange(int(original_target_pos.x - self.weapons[0].accuracy_modifier), int(original_target_pos.x + self.weapons[0].accuracy_modifier)))
+                target_pos.y = int(randrange(int(original_target_pos.y - self.weapons[0].accuracy_modifier), int(original_target_pos.y + self.weapons[0].accuracy_modifier)))
 
             # calculate velocity
             p_heading = (target_pos - self.pos).normalise()
-            p_vel = p_heading * p_speed
+            p_vel = p_heading * self.weapons[0].speed
 
             # set up and shoot projectile
-            p = self.projectile_pool[0]
-            self.projectile_pool.remove(p)
+            p = self.weapons[0].projectile_pool[0]
+            self.weapons[0].projectile_pool.remove(p)
             p.vel = p_vel
             p.pos = self.pos.copy()
-            p.p_type = self.weapon
-            p.damage = self.damage
+            # p.p_type = self.weapon
+            p.damage = self.weapons[0].damage
 
             # where's the grenade gonna land?
-            if self.weapon == 'Hand Grenade':
+            if self.weapons[0].name == 'Hand Grenade':
                 p.target = target_pos
 
             # add new projectile
             self.world.projectiles.append(p)
 
             loop -= 1
+
+        self.hunger += self.weapons[0].stamina_drain
 
     # Additional assistive methods used by Agent --------------------------------------------------
 
@@ -753,20 +819,6 @@ class Agent(object):
         to_target = target_pos - self.pos
         dist = to_target.length()
         return dist
-
-        # def eat(self, evaders):
-        #     to_eat = []
-
-        #     for evader in evaders:
-        #         if self.distance(evader.pos) < self.avoid_radius + evader.avoid_radius:
-        #             for marker in self.fov_markers:
-        #                 if evader.distance(marker) < evader.avoid_radius:
-        #                     to_eat.append(evader)
-
-        #     for evader in to_eat:
-        #         self.world.destroy(evader)
-
-        #     del to_eat
 
     def get_best_hiding_spot(self, spots, hunter):
         # sort and / or rank the hiding spots
@@ -796,12 +848,6 @@ class Agent(object):
             spots.sort(key=lambda x: x.avg_dist_to_hunter, reverse=True)
             for i in range(len(spots) - 1):
                 spots[i].rank += i
-            
-            # account for the number of collisions that have been experienced going to each spot
-            # got agent stuck in a loop where it kept changing the hiding spot it was going to every frame or two
-            # if False:    
-            #     for spot in spots:
-            #         spot.rank += spot.collisions
 
             # increment spots' rank if moving to them would require crossing the hunter's line of sight
             for spot in spots:
@@ -898,67 +944,15 @@ class Agent(object):
       
         return False # Doesn't fall in any of the above cases 
 
-    # def next_movement_type(self):
-    #     max_index = 2
-    #     self.movement_mode_index += 1
-
-    #     if self.movement_mode_index > max_index:
-    #         self.movement_mode_index = 0
-    
-    #     if self.movement_mode_index == 0:
-    #         self.movement_mode = 'Stationary'
-    #     elif self.movement_mode_index == 1:
-    #         self.movement_mode = 'Pacing'
-    #     elif self.movement_mode_index == 2:
-    #         self.movement_mode = 'Escape'
-
     def next_weapon(self):
-        max_index = 4
-        self.weapon_index += 1
+        # if len(self.weapons) < 1:
+        #     self.world.change_weapons(self)
 
-        if self.weapon_index > max_index:
-            self.weapon_index = 0
+        temp = self.weapons[0]
+        self.weapons[0] = self.weapons[1]
+        self.weapons[1] = temp
 
         self.last_shot = datetime.now()
-        self.rounds_left_in_magazine = 0
-
-        # Numbers borrowed from weapons in Halo CE where possible; rate of fire modified for
-        # how fast I'd probably shoot with them
-        if self.weapon_index == 0:
-            self.weapon = 'Rifle'
-            self.cooldown = 1.5 # max rpm of 0.5 sec / round 
-            self.effective_range = 10 * 2300 # effective range 2300 m
-            self.damage = 50
-            self.reload_time = 2.6
-            self.magazine_size = 4
-        elif self.weapon_index == 1:
-            self.weapon = 'Rocket'
-            self.cooldown = 1.5 # max rpm of 0.6 sec / round 
-            self.effective_range = 5 * 160 # estimated effective range 160 m
-            self.damage = 6        # explosive; does damage over time
-            self.reload_time = 3
-            self.magazine_size = 2
-        elif self.weapon_index == 2:
-            self.weapon = 'Hand Gun'
-            self.cooldown = 0.286 # max rpm
-            self.effective_range = 5 * 122.7 # effective range 122.7 m
-            self.damage = 20
-            self.reload_time = 1.8
-            self.magazine_size = 12
-        elif self.weapon_index == 3:
-            self.weapon = 'Hand Grenade'
-            self.cooldown = 2     # estimated max rpm of 2 sec / round 
-            self.effective_range = 5 * 75 # estimated effective range 75 m
-            self.damage = 4        # explosive; does damage over time
-            self.reload_time = 2
-            self.magazine_size = 8
-        elif self.weapon_index == 4:
-            self.weapon = 'Shotgun'
-            self.cooldown = 1   # max rpm of 1 sec / round 
-            self.effective_range = 30 * 5 # estimated effective range 5 m  
-            self.damage = 20      # multiple pellets; damage is spread out amongst them
-            self.reload_time = 6
-            self.magazine_size = 12
 
     def randomise_path(self):
         num_pts = 4

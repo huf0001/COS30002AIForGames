@@ -16,7 +16,7 @@ from datetime import datetime, time, timedelta
 class Projectile(object):
     # Agent Setup ---------------------------------------------------------------
 
-    def __init__(self, world=None, scale=30.0, radius=3.0, pos=Vector2D(0,0), vel=Vector2D(0,0), target=None, shooter=None, p_type=None, damage=None):
+    def __init__(self, world=None, scale=30.0, radius=3.0, pos=Vector2D(0,0), vel=Vector2D(0,0), target=None, weapon=None, damage=None, damage_factor=None):
         # keep a reference to the world object
         self.world = world
 
@@ -26,9 +26,9 @@ class Projectile(object):
         self.heading = self.vel.get_normalised()
         self.side = self.heading.perp()
         self.radius = radius
-        self.shooter = shooter
-        self.p_type = p_type
+        self.weapon = weapon
         self.damage = damage
+        self.damage_factor = damage_factor
 
         # scaling variables
         self.scale_scalar = scale
@@ -38,6 +38,7 @@ class Projectile(object):
         self.target_radius = self.radius * 2
 
         self.left_barrel = False
+
         self.exploding = False
         self.explosion_time = None
         self.explosion_multiplier = 1
@@ -45,7 +46,7 @@ class Projectile(object):
     # The central logic of the Projectile class ---------------------------------------------------
 
     def update(self, delta):
-        if not self.left_barrel and self.distance(self.shooter.pos) > self.shooter.radius + self.radius:
+        if not self.left_barrel and self.distance(self.weapon.owner.pos) > self.weapon.owner.radius + self.radius:
             self.left_barrel = True
 
         if not self.exploding:
@@ -58,7 +59,7 @@ class Projectile(object):
             collided = self.collided()
 
             if len(collided) > 0:
-                if self.p_type == 'Rocket' or self.p_type == 'Hand Grenade':
+                if self.weapon.name == 'Rocket' or self.weapon.name == 'Hand Grenade':
                     for collision in collided:
                         if collision is not self.target and collision in self.world.agents:
                             collision.hit_time = datetime.now()
@@ -76,7 +77,8 @@ class Projectile(object):
                     self.world.destroy_projectile(self)
         else:
             self.radius += 0.1 * self.scale_scalar * self.explosion_multiplier
-
+            
+            print("radius: " + str(self.radius))
             collided = self.collided()
 
             if len(collided) > 0:
@@ -110,7 +112,7 @@ class Projectile(object):
 
         if len(self.world.agents) > 0:
             for agent in self.world.agents:
-                if (self.left_barrel or agent is not self.shooter) and self.distance(agent.pos) < self.radius + agent.radius:
+                if (self.left_barrel or agent is not self.weapon.owner) and self.distance(agent.pos) < self.radius + agent.radius:
                     collided.append(agent)
 
         if self.world.walls_enabled:

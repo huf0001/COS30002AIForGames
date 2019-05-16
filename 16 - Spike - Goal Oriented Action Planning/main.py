@@ -28,6 +28,7 @@ from agent import Agent, AGENT_MODES  # Agent with seek, arrive, flee and pursui
 from obstacle import Obstacle
 from wall import Wall
 from path import Path
+from weapon import Weapon
 
 NUM_KEYS = {
     KEY._0: 0,
@@ -76,13 +77,14 @@ def on_key_press(symbol, modifiers):
     # respawn dead shooter
     elif symbol == KEY.S:
         if world.shooter == None:
-            world.shooter = Agent(world=world, agent_type='shooter', weapon='Rifle')
+            world.shooter = Agent(world=world, agent_type='shooter')
             world.agents.append(world.shooter)
             world.shooter.path = Path(num_pts=9, looped=True)
             world.shooter.heading = Vector2D(0,1)
             world.shooter.side = world.shooter.heading.perp()
             world.shooter.path.recreate_preset_path(maxx=world.cx, maxy=world.cy)
             world.shooter.update_hunt_dist()
+            world.shooter.ready = True
     # respawn dead target
     elif symbol == KEY.T:
         if world.target == None:
@@ -90,9 +92,14 @@ def on_key_press(symbol, modifiers):
             world.agents.append(world.target)
             world.target.heading = Vector2D(0,1)
             world.target.side = world.target.heading.perp()
+            world.target.ready = True
     # scroll through shooter weapons
     elif symbol == KEY.W:
         world.shooter.next_weapon()
+    elif symbol == KEY.C:
+        for weapon in world.shooter.weapons:
+            weapon.rounds_left_in_magazine = 0
+            weapon.magazines_left = 0
 
 def on_resize(cx, cy):
     world.cx = cx
@@ -105,6 +112,9 @@ def on_resize(cx, cy):
         wall.set_points()
 
     world.set_agents(cx, cy)
+
+    world.ammo_station = Vector2D(cx * 0.05, cy * 0.9)
+    world.food_station = Vector2D(cx * 0.95, cy * 0.9)
 
 
 if __name__ == '__main__':
@@ -135,6 +145,73 @@ if __name__ == '__main__':
     world.walls.append(Wall(world=world, side='bottom'))
     world.walls.append(Wall(world=world, side='left'))
     world.walls.append(Wall(world=world, side='right'))
+
+    # add weapons
+    world.weapons.append(Weapon(
+        world = world, 
+        name = 'Rifle', 
+        cooldown = 1.5,                 # max rpm of 0.5 sec / round
+        effective_range = 10 * 2300,    # effective range 2300 m
+        speed = 1000,
+        damage = 50, 
+        damage_factor = 1,
+        reload_time = 2.6, 
+        magazine_size = 4, 
+        magazines = 1,#6, 
+        accuracy_modifier = 0,
+        stamina_drain=4))
+    world.weapons.append(Weapon(
+        world = world, 
+        name = 'Rocket', 
+        cooldown = 1.5,                 # max rpm of 0.6 sec / round 
+        effective_range = 5 * 160,      # estimated effective range 160 m
+        speed = 250,
+        damage = 6,                     # explosive; does damage over time
+        damage_factor = 20,
+        reload_time = 3, 
+        magazine_size = 2, 
+        magazines = 1,#4, 
+        accuracy_modifier = 0,
+        stamina_drain=5)) 
+    world.weapons.append(Weapon(
+        world = world, 
+        name = 'Hand Gun', 
+        cooldown = 0.286,               # max rpm
+        effective_range = 5 * 122.7,    # effective range 122.7 m
+        speed = 1000,
+        damage = 20, 
+        damage_factor = 1,
+        reload_time = 1.8, 
+        magazine_size = 12, 
+        magazines = 1,#10, 
+        accuracy_modifier = 50,
+        stamina_drain=2))
+    world.weapons.append(Weapon(
+        world = world, 
+        name = 'Hand Grenade', 
+        cooldown = 2,                   # estimated max rpm of 2 sec / round 
+        effective_range = 5 * 75,       # estimated effective range 75 m
+        speed = 250,
+        damage = 4,                     # explosive; does damage over time
+        damage_factor = 20,
+        reload_time = 2, 
+        magazine_size = 8, 
+        magazines = 1,#2, 
+        accuracy_modifier = 50,
+        stamina_drain=1))
+    world.weapons.append(Weapon(
+        world = world, 
+        name = 'Shotgun', 
+        cooldown = 1,                   # max rpm of 1 sec / round
+        effective_range = 30 * 5,       # estimated effective range 5 m 
+        speed = 1000,
+        damage = 20,                    # multiple pellets; damage is spread out amongst them
+        damage_factor = 3,
+        reload_time = 6, 
+        magazine_size = 12, 
+        magazines = 1,#5, 
+        accuracy_modifier = 50,
+        stamina_drain=3))
 
     # add agents
     world.set_agents(world.cx, world.cy)
