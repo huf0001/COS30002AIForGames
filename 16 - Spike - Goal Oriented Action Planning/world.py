@@ -90,7 +90,7 @@ class World(object):
             egi.white_pen()
 
             if self.shooter is not None and self.shooter.ready:
-                health_status = 'Soldier: ' + str(self.shooter.health) + ' HP. Hunger: ' + str(int(self.shooter.hunger)) + '. '
+                health_status = 'Soldier: ' + str(self.shooter.health) + ' HP. Hunger: ' + str(int(self.shooter.hunger)) + '/50. '
                 agent_status = 'Soldier Status: ' + self.shooter.movement_mode + ', ' + self.shooter.combat_mode + '. ' 
                 weapon_0 = self.shooter.weapons[0]
                 weapon_1 = self.shooter.weapons[1]

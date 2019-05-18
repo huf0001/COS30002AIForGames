@@ -178,13 +178,12 @@ class Agent(object):
                         self.weapons[0].rounds_left_in_magazine -= 1
                         self.shoot(target)
 
-        elif self.movement_mode == 'Exchange Weapons' and self.distance(self.world.ammo_station) < self.world.station_size:
-            self.world.change_weapons(self)
-            self.movement_mode = 'Patrol'
         elif self.movement_mode == 'Get Food' and self.distance(self.world.food_station) < self.world.station_size:
             self.hunger = 0
             self.movement_mode = 'Patrol'
-
+        elif self.movement_mode == 'Exchange Weapons' and self.distance(self.world.ammo_station) < self.world.station_size:
+            self.world.change_weapons(self)
+            self.movement_mode = 'Patrol'
 
         self.move(delta)
 
@@ -243,21 +242,19 @@ class Agent(object):
         if weapon_0_ammo <= 0 and weapon_1_ammo <= 0:
             self.movement_mode = 'Exchange Weapons'
             return False
-        elif self.movement_mode == 'Patrol':
-            if self.world.target is not None:
-                if weapon_0_avg_dmg * weapon_0_ammo + weapon_1_avg_dmg * weapon_1_ammo < target_health:
-                    self.movement_mode = 'Exchange Weapons'
-                    return False
-            elif weapon_0_avg_dmg * weapon_0_ammo + weapon_1_avg_dmg * weapon_1_ammo < self.start_health:
-                self.movement_mode = 'Exchange Weapons'
-                return False
+        elif self.world.target is not None and (self.movement_mode == 'Attack' or self.movement_mode == 'Patrol') and weapon_0_avg_dmg * weapon_0_ammo + weapon_1_avg_dmg * weapon_1_ammo < target_health:
+            self.movement_mode = 'Exchange Weapons'
+            return False
+        elif self.world.target == None and self.movement_mode == 'Patrol' and weapon_0_avg_dmg * weapon_0_ammo + weapon_1_avg_dmg * weapon_1_ammo < self.start_health:
+            self.movement_mode = 'Exchange Weapons'
+            return False            
 
         # check if only current weapon is out of ammo
         if weapon_0_ammo <= 0 and weapon_1_ammo > 0:
             self.next_weapon()
         # check if both weapons have ammo, if both weapons' probable damage dealt (accounting for explosive splash damage and multiple shotgun pellets vs fixed damage rifle and hand gun bullets)
         # would be sufficient to kill the target, and the next weapon deals less damage
-        if self.world.target is not None and weapon_0_ammo > 0 < weapon_1_ammo and weapon_0_avg_dmg > weapon_1_avg_dmg > target_health:
+        elif self.world.target is not None and weapon_0_ammo > 0 < weapon_1_ammo and weapon_0_avg_dmg > weapon_1_avg_dmg > target_health:
             self.next_weapon()
 
         return True
@@ -351,10 +348,10 @@ class Agent(object):
         return Vector2D(0,0)
 
     def calculate_shooter(self, delta):
-        if self.movement_mode == 'Exchange Weapons':
-            return self.arrive(self.world.ammo_station, 'slow')
-        elif self.movement_mode == 'Get Food':
+        if self.movement_mode == 'Get Food':
             return self.arrive(self.world.food_station, 'slow')
+        elif self.movement_mode == 'Exchange Weapons':
+            return self.arrive(self.world.ammo_station, 'slow')
         elif self.movement_mode == 'Patrol':
             return self.follow_path()
         elif self.movement_mode == 'Attack':
