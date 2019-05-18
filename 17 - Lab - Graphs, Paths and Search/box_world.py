@@ -75,7 +75,7 @@ edge_cost_matrix = [
     [None, None, None, None], # 'X <- NO edges to walls.
 ]
 
-min_edge_cost = 10.0 # must be min value for heuristic cost to work
+min_edge_cost = 1.0 # must be min value for heuristic cost to work
 
 def edge_cost(k1, k2):
     k1 = box_kind.index(k1)
@@ -214,6 +214,7 @@ class BoxWorld(object):
         # create nav_graph
         self.path = None
         self.graph = None
+        self.diagonal = '_manhattan'
         self.reset_navgraph()
         self.start = None
         self.target = None
@@ -318,9 +319,13 @@ class BoxWorld(object):
         self.path = None # invalid so remove if present
         self.graph = SparseGraph()
         # Set a heuristic cost function for the search to use
-        self.graph.cost_h = self._manhattan
-        #self.graph.cost_h = self._hypot
-        #self.graph.cost_h = self._max
+        
+        if self.diagonal == '_manhattan':
+            self.graph.cost_h = self._manhattan
+        elif self.diagonal == '_hypot':
+            self.graph.cost_h = self._hypot
+        elif self.diagonal == '_max':
+            self.graph.cost_h = self._max
 
         nx, ny = self.nx, self.ny
         # add all the nodes required
@@ -344,24 +349,24 @@ class BoxWorld(object):
             # LEFT (i - 1)
             if (i%nx - 1) >= 0:
                 self._add_edge(i, i-1)
-#            # Diagonal connections
-#            # UP LEFT(i + nx - 1)
-#            j = i + nx
-#            if (j-1) < len(self.boxes) and (j%nx - 1) >= 0:
-#                self._add_edge(i, j-1, 1.4142) # sqrt(1+1)
-#            # UP RIGHT (i + nx + 1)
-#            j = i + nx
-#            if (j+1) < len(self.boxes) and (j%nx + 1) < nx:
-#                self._add_edge(i, j+1, 1.4142)
-#            # DOWN LEFT(i - nx - 1)
-#            j = i - nx
-#            if (j-1) >= 0 and (j%nx - 1) >= 0:
-#                print i, j, j%nx
-#                self._add_edge(i, j-1, 1.4142)
-#            # DOWN RIGHT (i - nx + 1)
-#            j = i - nx
-#            if (j+1) >= 0 and (j%nx +1) < nx:
-#                 self._add_edge(i, j+1, 1.4142)
+            # Diagonal connections
+            # UP LEFT(i + nx - 1)
+            j = i + nx
+            if (j-1) < len(self.boxes) and (j%nx - 1) >= 0:
+               self._add_edge(i, j-1, 1.4142) # sqrt(1+1)
+            # UP RIGHT (i + nx + 1)
+            j = i + nx
+            if (j+1) < len(self.boxes) and (j%nx + 1) < nx:
+               self._add_edge(i, j+1, 1.4142)
+            # DOWN LEFT(i - nx - 1)
+            j = i - nx
+            if (j-1) >= 0 and (j%nx - 1) >= 0:
+               # print (i, j, j%nx)
+               self._add_edge(i, j-1, 1.4142)
+            # DOWN RIGHT (i - nx + 1)
+            j = i - nx
+            if (j+1) >= 0 and (j%nx +1) < nx:
+                self._add_edge(i, j+1, 1.4142)
 
 
 

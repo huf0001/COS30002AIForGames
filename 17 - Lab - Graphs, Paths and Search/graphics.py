@@ -169,14 +169,22 @@ class EasyGraphics(object):
         self.curr_color = color
         glColor4f(*self.curr_color)
 
-    def red_pen(self):    self.set_pen_color(name='RED')
-    def blue_pen(self):   self.set_pen_color(name='BLUE')
-    def green_pen(self):  self.set_pen_color(name='GREEN')
-    def black_pen(self):  self.set_pen_color(name='BLACK')
-    def white_pen(self):  self.set_pen_color(name='WHITE')
-    def grey_pen(self):   self.set_pen_color(name='GREY')
-    def aqua_pen(self):   self.set_pen_color(name='AQUA')
-    def orange_pen(self): self.set_pen_color(name='ORANGE')
+    def red_pen(self):          self.set_pen_color(name='RED')
+    def blue_pen(self):         self.set_pen_color(name='BLUE')
+    def green_pen(self):        self.set_pen_color(name='GREEN')
+    def black_pen(self):        self.set_pen_color(name='BLACK')
+    def white_pen(self):        self.set_pen_color(name='WHITE')
+    def grey_pen(self):         self.set_pen_color(name='GREY')
+    def aqua_pen(self):         self.set_pen_color(name='AQUA')
+    def orange_pen(self):       self.set_pen_color(name='ORANGE')
+    def pink_pen(self):         self.set_pen_color(name='PINK')
+    def yellow_pen(self):       self.set_pen_color(name='YELLOW')
+    def purple_pen(self):       self.set_pen_color(name='PURPLE')
+    def brown_pen(self):        self.set_pen_color(name='BROWN')
+    def dark_green_pen(self):   self.set_pen_color(name='DARK_GREEN')
+    def light_blue_pen(self):   self.set_pen_color(name='LIGHT_BLUE')
+    def light_grey_pen(self):   self.set_pen_color(name='LIGHT_GREY')
+    def light_pink_pen(self):   self.set_pen_color(name='LIGHT_PINK')
 
     def set_stroke(self, stroke):
         self.stroke = stroke

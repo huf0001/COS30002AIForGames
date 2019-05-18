@@ -160,6 +160,17 @@ class BoxWorldWindow(pyglet.window.Window):
                 self.limit = 0
                 self.plan_path()
                 self._update_label('status', 'limit=%d' % self.limit)
+            elif symbol == key.D:
+                print("changing diagonal")
+                if self.world.diagonal == '_manhattan':
+                    self.world.diagonal = '_hypot'
+                    print("_hypot")
+                elif self.world.diagonal == '_hypot':
+                    self.world.diagonal = '_max'
+                    print("_max")
+                elif self.world.diagonal == '_max':
+                    self.world.diagonal = '_manhattan'
+                    print("_manhattan")
 
     def plan_path(self):
         self.world.plan_path(search_modes[self.search_mode], self.limit)
