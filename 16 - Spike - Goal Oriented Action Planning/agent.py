@@ -122,6 +122,8 @@ class Agent(object):
         if self.agent_type == 'shooter':
             self.world.change_weapons(self)
 
+        self.last_aware_time = None
+
     # The central logic of the Agent class ------------------------------------------------
 
     def update(self, delta):
@@ -149,8 +151,16 @@ class Agent(object):
         if not self.hungry() and self.choose_weapon():
             if self.see_target or (self.world.target is not None and self.distance(self.world.target.pos) < self.hunt_dist + self.world.target.radius):
                 self.movement_mode = 'Attack'
-            else:
+
+                if self.last_aware_time is not None:
+                    self.last_aware_time = None
+            elif self.last_aware_time == None:
                 self.movement_mode = 'Patrol'
+            elif (datetime.now() - self.last_aware_time).total_seconds() > 10:
+                self.last_aware_time = None
+                self.movement_mode = 'Patrol'
+            else:
+                self.movement_mode = 'Resume Attack'
 
             if self.weapons[0].rounds_left_in_magazine == 0 and (datetime.now() - self.last_shot).total_seconds() <= self.weapons[0].reload_time:
                 self.combat_mode = 'Reloading'
@@ -180,10 +190,24 @@ class Agent(object):
 
         elif self.movement_mode == 'Get Food' and self.distance(self.world.food_station) < self.world.station_size:
             self.hunger = 0
-            self.movement_mode = 'Patrol'
+
+            if self.last_aware_time is not None:
+                self.movement_mode = 'Resume Attack'
+            else:
+                self.movement_mode = 'Patrol'
         elif self.movement_mode == 'Exchange Weapons' and self.distance(self.world.ammo_station) < self.world.station_size:
             self.world.change_weapons(self)
-            self.movement_mode = 'Patrol'
+            
+            if self.last_aware_time is not None:
+                self.movement_mode = 'Resume Attack'
+            else:
+                self.movement_mode = 'Patrol'
+
+        if self.movement_mode == 'Get Food' or self.movement_mode == 'Exchange Weapons':
+            if self.see_target or (self.world.target is not None and self.distance(self.world.target.pos) < self.hunt_dist + self.world.target.radius):
+                self.last_aware_time = datetime.now()
+            elif self.last_aware_time is not None and (datetime.now() - self.last_aware_time).total_seconds() > 10:
+                self.last_aware_time = None
 
         self.move(delta)
 
@@ -341,9 +365,6 @@ class Agent(object):
             return self.wander(delta)
         elif self.movement_mode == 'Escape':
             return self.avoid(self.world.shooter.pos)
-        # elif self.movement_mode == 'Stationary':
-        #     if self.vel.length() > 0:
-        #         return -self.vel
 
         return Vector2D(0,0)
 
@@ -354,11 +375,10 @@ class Agent(object):
             return self.arrive(self.world.ammo_station, 'slow')
         elif self.movement_mode == 'Patrol':
             return self.follow_path()
-        elif self.movement_mode == 'Attack':
-            if self.world.obstacles_enabled:
-                return self.hunt(self.world.target, delta)
-            else:
-                return self.seek(self.world.target.pos)
+        elif self.movement_mode == 'Attack' and self.world.obstacles_enabled:
+            return self.hunt(self.world.target, delta)
+        elif self.movement_mode == 'Attack' or self.movement_mode == 'Resume Attack':
+            return self.seek(self.world.target.pos)
 
         return Vector2D(0,0)
 
