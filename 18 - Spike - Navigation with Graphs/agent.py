@@ -10,10 +10,12 @@ from vector2d import Point2D
 from graphics import egi, KEY
 from math import sin, cos, radians, sqrt
 from random import random, randrange, uniform
-from path import Path
-from hiding_spot import HidingSpot
+#from path import Path
+#from hiding_spot import HidingSpot
 from projectile import Projectile
 from datetime import datetime, time, timedelta
+from searches import SEARCHES
+from pyglet import clock
 
 AGENT_MODES = {
     KEY._1: 'seek',
@@ -37,7 +39,7 @@ class Agent(object):
         'fast': 0.3
     }
 
-    def __init__(self, world=None, scale=30.0, mass=1.0, agent_type=None, movement_mode=None, combat_mode=None, weapons=[], speed_limiter=5, radius=30.0, pos=None, path=Path()):
+    def __init__(self, world=None, scale=30.0, agent_type=None, movement_mode=None, combat_mode=None, weapons=[], radius=10.0, pos=None, box=None, path=None):
         # keep a reference to the world object
         self.world = world
         self.agent_type = agent_type
@@ -47,9 +49,10 @@ class Agent(object):
         self.ready = False
 
         self.health = 100
+        self.start_health = 100
+
         if self.agent_type == 'shooter':
             self.health = self.health ** 3
-        self.start_health = 100
 
         # scaling variables
         self.scale_scalar = scale
@@ -61,34 +64,35 @@ class Agent(object):
         self.vel = Vector2D(0,0)
         self.heading = Vector2D(sin(dir), cos(dir))
         self.side = self.heading.perp()
-        self.force = Vector2D(0,0)  # current steering force
-        self.accel = Vector2D(0,0) # current acceleration due to force
+        # self.force = Vector2D(0,0)  # current steering force
+        # self.accel = Vector2D(0,0) # current acceleration due to force
         self.radius = radius
-        self.hiding_spots = []
-        self.best_hiding_spot = None
+        # self.hiding_spots = []
+        # self.best_hiding_spot = None
 
         # force- and speed-limiting variables
-        self.max_force = 500.0
+        # self.max_force = 500.0
         self.avoidance_range = 200.0
-        self.speed_limiter = speed_limiter
-        self.max_speed = 30 * self.scale_scalar / speed_limiter 
+        #self.speed_limiter = speed_limiter
+        # self.max_speed = 30 * self.scale_scalar #/ speed_limiter 
+        self.max_speed = 100
 
-        if self.agent_type == 'target':
-            self.max_force = self.max_force * 0.5
-            self.max_speed = self.max_speed * 0.5
+        # if self.agent_type == 'target':
+        #     self.max_force = self.max_force * 0.5
+        #     self.max_speed = self.max_speed * 0.5
 
         # path variables
         self.path = path
-        self.randomise_path()
+        #self.randomise_path()
         self.waypoint_threshold = 40.0
 
-        # wander variables
-        self.wander_dist = 2.0 * self.scale_scalar
-        self.wander_radius = 1.0 * self.scale_scalar
-        self.wander_jitter = 10.0 * self.scale_scalar
-        self.wander_target = Vector2D(1.0, 0)
-        self.b_radius = self.scale_scalar
-        self.wandering = False
+        # # wander variables
+        # self.wander_dist = 2.0 * self.scale_scalar
+        # self.wander_radius = 1.0 * self.scale_scalar
+        # self.wander_jitter = 10.0 * self.scale_scalar
+        # self.wander_target = Vector2D(1.0, 0)
+        # self.b_radius = self.scale_scalar
+        # self.wandering = False
 
         # avoidance variables
         self.avoid_radius = 2 * self.radius
@@ -103,10 +107,13 @@ class Agent(object):
         self.show_avoidance = False
 
         # where am i?
-        if pos is None:
-            self.pos = self.get_random_valid_position(world.cx, world.cy, self.world.obstacles, self.world.agents)
+        if pos == None:
+            self.pos = None
+            self.box = None
+            self.position_in_random_box()
         else:
             self.pos = pos
+            self.box = box
 
         self.current_pt = None
         self.next_pt = None
@@ -127,120 +134,69 @@ class Agent(object):
     # The central logic of the Agent class ------------------------------------------------
 
     def update(self, delta):
-        if self.health <= 0:
-            self.world.destroy_agent(self)
+        if self.path is not None:
+            self.follow_graph_path(delta)
+            self.box = self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y))
 
-        if self.hit_time is not None and (datetime.now() - self.hit_time).total_seconds() > 0.1:
-            self.hit_time = None
+        # if moved:
+        #     self.box = self.world.get_box_by_pos(x,y)
+        #if self.path == None:
 
-        self.obst_detected = False
-        self.sensor_obst_detected = False
+        #pass
 
-        sns_pos = Vector2D(min(self.avoid_radius * 2, self.vel.length()), 0)
-        self.sensor_pos = self.world.transform_point(sns_pos, self.pos, self.heading, self.side)
 
-        if self.agent_type == 'shooter':
-            self.update_shooter(delta)
-        elif self.agent_type == 'target':
-            self.update_target(delta)
+
+        # if self.health <= 0:
+        #     self.world.destroy_agent(self)
+
+        # if self.hit_time is not None and (datetime.now() - self.hit_time).total_seconds() > 0.1:
+        #     self.hit_time = None
+
+        # self.obst_detected = False
+        # self.sensor_obst_detected = False
+
+        # sns_pos = Vector2D(min(self.avoid_radius * 2, self.vel.length()), 0)
+        # self.sensor_pos = self.world.transform_point(sns_pos, self.pos, self.heading, self.side)
+
+        # if self.agent_type == 'shooter':
+        #     self.update_shooter(delta)
+        # elif self.agent_type == 'target':
+        #     self.update_target(delta)
 
     def update_shooter(self, delta):
-        self.see_target = False
-        self.update_fov(self.world.obstacles, self.world.agents)
+        pass
+        #self.move(delta)
 
-        if not self.hungry() and self.choose_weapon():
-            if self.see_target or (self.world.target is not None and self.distance(self.world.target.pos) < self.hunt_dist + self.world.target.radius):
-                self.movement_mode = 'Attack'
+    # def hungry(self):
+    #     if self.hunger >= 50:
+    #         self.world.destroy_agent(self)
 
-                if self.last_aware_time is not None:
-                    self.last_aware_time = None
-            elif self.last_aware_time == None:
-                self.movement_mode = 'Patrol'
-            elif (datetime.now() - self.last_aware_time).total_seconds() > 10:
-                self.last_aware_time = None
-                self.movement_mode = 'Patrol'
-            else:
-                self.movement_mode = 'Resume Attack'
+    #     if self.last_hunger_ping == None:
+    #         self.last_hunger_ping = datetime.now()
 
-            if self.weapons[0].rounds_left_in_magazine == 0 and (datetime.now() - self.last_shot).total_seconds() <= self.weapons[0].reload_time:
-                self.combat_mode = 'Reloading'
-            else:
-                if self.weapons[0].rounds_left_in_magazine == 0:
-                    self.weapons[0].rounds_left_in_magazine += self.weapons[0].magazine_size
-                    self.weapons[0].magazines_left -= 1
+    #     if (datetime.now() - self.last_hunger_ping).total_seconds() >= 1:
+    #         self.last_hunger_ping = datetime.now()
+    #         self.hunger += 1
 
-                if (datetime.now() - self.last_shot).total_seconds() <= self.weapons[0].cooldown:
-                    self.combat_mode = 'Weapon is Loading Next Round'
-                elif self.movement_mode == 'Attack':
-                    self.combat_mode = 'Aiming'
-                elif self.movement_mode == 'Patrol':
-                    self.combat_mode = 'Ready'
+    #     if self.movement_mode == 'Get Food':
+    #         return True
+    #     elif self.movement_mode == 'Patrol':
+    #         max_distance = (Vector2D(0,0) - Vector2D(self.world.cx, self.world.cy)).length()
+    #         max_time = max_distance / self.max_speed
 
-            if self.movement_mode == 'Attack' and self.combat_mode == 'Aiming':
-                if len(self.weapons[0].projectile_pool) == 0:
-                    self.combat_mode = 'No Projectiles Pooled'
-                else:
-                    target = self.aim_shot(self.world.target)
+    #         if (self.hunger + max_time) * 1.1 >= 50:
+    #             self.movement_mode = 'Get Food'
+    #             return True
 
-                    if target is not None:
-                        self.combat_mode = 'Shooting'
-                        self.last_shot = datetime.now()
-                        self.weapons[0].rounds_left_in_magazine -= 1
-                        self.shoot(target)
+    #     elif self.movement_mode == 'Attack':
+    #         current_distance = self.distance(self.world.food_station)
+    #         current_time = current_distance / self.max_speed
 
-        elif self.movement_mode == 'Get Food' and self.distance(self.world.food_station) < self.world.station_size:
-            self.hunger = 0
+    #         if (self.hunger + current_time) * 1.1 >= 50:
+    #             self.movement_mode = 'Get Food'
+    #             return True
 
-            if self.last_aware_time is not None:
-                self.movement_mode = 'Resume Attack'
-            else:
-                self.movement_mode = 'Patrol'
-        elif self.movement_mode == 'Exchange Weapons' and self.distance(self.world.ammo_station) < self.world.station_size:
-            self.world.change_weapons(self)
-            
-            if self.last_aware_time is not None:
-                self.movement_mode = 'Resume Attack'
-            else:
-                self.movement_mode = 'Patrol'
-
-        if self.movement_mode == 'Get Food' or self.movement_mode == 'Exchange Weapons':
-            if self.see_target or (self.world.target is not None and self.distance(self.world.target.pos) < self.hunt_dist + self.world.target.radius):
-                self.last_aware_time = datetime.now()
-            elif self.last_aware_time is not None and (datetime.now() - self.last_aware_time).total_seconds() > 10:
-                self.last_aware_time = None
-
-        self.move(delta)
-
-    def hungry(self):
-        if self.hunger >= 50:
-            self.world.destroy_agent(self)
-
-        if self.last_hunger_ping == None:
-            self.last_hunger_ping = datetime.now()
-
-        if (datetime.now() - self.last_hunger_ping).total_seconds() >= 1:
-            self.last_hunger_ping = datetime.now()
-            self.hunger += 1
-
-        if self.movement_mode == 'Get Food':
-            return True
-        elif self.movement_mode == 'Patrol':
-            max_distance = (Vector2D(0,0) - Vector2D(self.world.cx, self.world.cy)).length()
-            max_time = max_distance / self.max_speed
-
-            if (self.hunger + max_time) * 1.1 >= 50:
-                self.movement_mode = 'Get Food'
-                return True
-
-        elif self.movement_mode == 'Attack':
-            current_distance = self.distance(self.world.food_station)
-            current_time = current_distance / self.max_speed
-
-            if (self.hunger + current_time) * 1.1 >= 50:
-                self.movement_mode = 'Get Food'
-                return True
-
-        return False
+    #     return False
 
     def choose_weapon(self):
         if self.movement_mode == 'Exchange Weapons':
@@ -284,13 +240,8 @@ class Agent(object):
         return True
 
     def update_target(self, delta):
-        if self.world.shooter is not None and (self.distance(self.world.shooter.pos) < self.avoidance_range or self.world.shooter.movement_mode == 'Attack'):
-            self.movement_mode = 'Escape'
-        else:
-            self.movement_mode = 'Wander'
-
-        #if self.movement_mode is not 'Stationary' or self.vel.length() > 0:
-        self.move(delta)
+        pass
+        #self.move(delta)
 
     def move(self, delta):
         force = Vector2D()
@@ -361,30 +312,41 @@ class Agent(object):
         return force
 
     def calculate_target(self, delta):
-        if self.movement_mode == 'Wander' or self.world.shooter == None:
-            return self.wander(delta)
-        elif self.movement_mode == 'Escape':
-            return self.avoid(self.world.shooter.pos)
+        pass
+        # if self.movement_mode == 'Wander' or self.world.shooter == None:
+        #     return self.wander(delta)
+        # elif self.movement_mode == 'Escape':
+        #     return self.avoid(self.world.shooter.pos)
 
-        return Vector2D(0,0)
+        # return Vector2D(0,0)
 
     def calculate_shooter(self, delta):
-        if self.movement_mode == 'Get Food':
-            return self.arrive(self.world.food_station, 'slow')
-        elif self.movement_mode == 'Exchange Weapons':
-            return self.arrive(self.world.ammo_station, 'slow')
-        elif self.movement_mode == 'Patrol':
-            return self.follow_path()
-        elif self.movement_mode == 'Attack' and self.world.obstacles_enabled:
-            return self.hunt(self.world.target, delta)
-        elif self.movement_mode == 'Attack' or self.movement_mode == 'Resume Attack':
-            return self.seek(self.world.target.pos)
+        pass
+        # if self.movement_mode == 'Get Food':
+        #     return self.arrive(self.world.food_station, 'slow')
+        # elif self.movement_mode == 'Exchange Weapons':
+        #     return self.arrive(self.world.ammo_station, 'slow')
+        # elif self.movement_mode == 'Patrol':
+        #     return self.follow_path()
+        # elif self.movement_mode == 'Attack' and self.world.obstacles_enabled:
+        #     return self.hunt(self.world.target, delta)
+        # elif self.movement_mode == 'Attack' or self.movement_mode == 'Resume Attack':
+        #     return self.seek(self.world.target.pos)
 
-        return Vector2D(0,0)
+        # return Vector2D(0,0)
 
     def render(self, color=None):
         #render agent
         egi.set_stroke(2)
+
+        if self.path is not None:
+            egi.red_pen()
+            path = self.path.path
+            egi.line_by_pos(self.pos, self.world.boxes[path[0]]._vc)
+
+            for i in range(1,len(path)):
+                egi.line_by_pos(self.world.boxes[path[i-1]]._vc, self.world.boxes[path[i]]._vc)
+
 
         if self.hit_time is not None:
             egi.red_pen()
@@ -423,6 +385,8 @@ class Agent(object):
                 egi.line(pos1=self.fov_markers[0], pos2=self.fov_markers[1])
                 egi.line(pos1=self.fov_markers[1], pos2=self.fov_markers[5])
                 egi.line(pos1=self.fov_markers[5], pos2=self.fov_markers[4])
+        else:
+            egi.circle(self.pos, self.radius)
 
         # render obstacle avoidance
         if self.show_avoidance:
@@ -596,19 +560,66 @@ class Agent(object):
         else:
             return self.avoid(hunter_pos)
 
-    def follow_path(self):
-        if self.path.current_pt() is self.path.end_pt():
-            return self.arrive(self.path.current_pt(), "slow")
-        else:
-            dist = self.distance(self.path.current_pt())
+    def follow_graph_path(self, delta):
+        path = self.path.path
 
-            if self.distance(self.path.current_pt()) < self.waypoint_threshold:
-                self.path.inc_current_pt()
-            
-            if self.distance(self.path.current_pt()) < self.waypoint_threshold * 3:
-                return self.arrive(self.path.current_pt(), "slow")
+        if path is not None and len(path) == 0:
+            return
+
+        path_node = Vector2D(self.world.boxes[path[0]]._vc.x, self.world.boxes[path[0]]._vc.y)
+        to_path_node = (path_node - self.pos).normalise() * self.max_speed * delta
+
+        self.pos.x = self.pos.x + (to_path_node.x * self.world.scale_multiplier.x)
+        self.pos.y = self.pos.y + (to_path_node.y * self.world.scale_multiplier.y)
+
+        if self.distance(path_node) < self.radius * 0.5:
+            if len(path) > 1:
+                self.path.path.remove(self.path.path[0])
+                #self.box = self.world.boxes[self.path.path[0]]
             else:
-                return self.seek(self.path.current_pt())
+                self.path = None
+
+
+        #  def __init__(self, graph, route, target_idx, open, closed, steps):
+        # # keep any data if we are asked
+        # self.route = route
+        # self.open = open
+        # self.closed = closed
+        # self.target_idx = target_idx
+        # self.steps = steps
+        # # Convert dictionary back in to a list of nodes for a path
+        # if target_idx in route:
+        #     path = []
+        #     curr_idx = target_idx
+        #     while curr_idx != route[curr_idx]:
+        #         path.append(curr_idx)
+        #         curr_idx = route[curr_idx]
+        #     self.result = 'Success! '
+
+        #     self.result += 'Still going...' if target_idx in open else 'Done!'
+        #     path.append(curr_idx)
+        #     path.reverse()
+        #     self.path = path
+        #     self.path_cost = str(graph.path_cost(path))
+        #     self.source_idx = curr_idx
+        # else:
+        #     self.result = 'Failed.'
+        #     self.path = []
+        #     self.path_cost = '---'
+
+    # def follow_path(self):
+    #     if self.path.current_pt() is self.path.end_pt():
+    #         return self.arrive(self.path.current_pt(), "slow")
+    #     else:
+    #         dist = self.distance(self.path.current_pt())
+
+    #         if self.distance(self.path.current_pt()) < self.waypoint_threshold:
+    #             self.path.inc_current_pt()
+            
+    #         if self.distance(self.path.current_pt()) < self.waypoint_threshold * 3:
+    #             return self.arrive(self.path.current_pt(), "slow")
+    #         else:
+    #             return self.seek(self.path.current_pt())
 
     def hide(self, hunter, hiding_spots, delta):
         self.best_hiding_spot = None        
@@ -970,6 +981,22 @@ class Agent(object):
         self.weapons[1] = temp
 
         self.last_shot = datetime.now()
+
+    def plan_path(self, search, limit):
+        '''Conduct a nav-graph search from the current world start node to the
+        current target node, using a search method that matches the string
+        specified in `search`.
+        '''
+        cls = SEARCHES[search]
+        self.path = cls(self.world.graph, self.box.idx, self.world.target.idx, limit)
+
+    def position_in_random_box(self):
+        self.box = self.world.boxes[randrange(0, len(self.world.boxes))]
+
+        while self.box.kind == "X":
+            self.box = self.world.boxes[randrange(0, len(self.world.boxes))]
+        
+        self.pos = self.box._vc
 
     def randomise_path(self):
         num_pts = 4

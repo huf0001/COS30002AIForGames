@@ -54,6 +54,7 @@ from point2d import Point2D
 from graph import SparseGraph, Node, Edge
 from searches import SEARCHES
 from math import hypot
+from agent import Agent
 
 
 box_kind = ['.','m','~','X']
@@ -203,18 +204,25 @@ class BoxWorld(object):
     '''A world made up of boxes. '''
 
     def __init__(self, nx, ny, cx, cy):
+        self.agents = []
         self.boxes = [None]*nx*ny
         self.nx, self.ny = nx, ny # number of box (squares)
+
         for i in range(len(self.boxes)):
             self.boxes[i] = Box()
             self.boxes[i].idx = i
+
         # use resize to set all the positions correctly
         self.cx = self.cy = self.wx = self.wy = None
+        self.original_cx = cx
+        self.original_cy = cy
+        self.scale_multiplier = Point2D(1, 1)
         self.resize(cx, cy)
+
         # create nav_graph
         self.path = None
         self.graph = None
-        self.diagonal = '_manhattan'
+        self.diagonal = '_max'
         self.reset_navgraph()
         self.start = None
         self.target = None
@@ -228,7 +236,8 @@ class BoxWorld(object):
         return self.boxes[idx] if idx < len(self.boxes) else None
 
     def update(self, delta):
-        pass
+        for agent in self.agents:
+        	agent.update(delta)
 
     def draw(self):
         for box in self.boxes:
@@ -270,6 +279,11 @@ class BoxWorld(object):
                     egi.line_by_pos(self.boxes[path[i-1]]._vc, self.boxes[path[i]]._vc)
                 egi.set_stroke(1)
 
+        for agent in self.agents:
+            # egi.set_pen_color(name='ORANGE')
+            # egi.set_stroke(2)
+            # egi.circle(agent.pos, agent.radius)
+            agent.render()
 
     def resize(self, cx, cy):
         self.cx, self.cy = cx, cy # world size
@@ -282,6 +296,10 @@ class BoxWorld(object):
             # top, right, bottom, left
             coords = (y + self.wy -1, x + self.wx -1, y, x)
             self.boxes[i].reposition(coords)
+        for agent in self.agents:
+        	agent.pos = agent.box._vc
+        self.scale_multiplier = Point2D(cx / self.original_cx, cy / self.original_cy)
+
 
     def _add_edge(self, from_idx, to_idx, distance=1.0):
         b = self.boxes
@@ -368,6 +386,9 @@ class BoxWorld(object):
             if (j+1) >= 0 and (j%nx +1) < nx:
                 self._add_edge(i, j+1, 1.4142)
 
+    def set_agents(self):
+        self.agents.append(Agent(world=self))
+
 
 
     def set_start(self, idx):
@@ -397,8 +418,9 @@ class BoxWorld(object):
         current target node, using a search method that matches the string
         specified in `search`.
         '''
-        cls = SEARCHES[search]
-        self.path = cls(self.graph, self.start.idx, self.target.idx, limit)
+
+        for agent in self.agents:
+        	agent.plan_path(search, limit)
 
     @classmethod
     def FromFile(cls, filename, pixels=(500,500) ):

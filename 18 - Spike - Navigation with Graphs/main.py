@@ -58,9 +58,10 @@ class BoxWorldWindow(pyglet.window.Window):
         #filename = 'map2.txt'
         self.world = BoxWorld.FromFile(filename, self.get_size())
         self.world.reset_navgraph()
+        self.world.set_agents()
 
         # prep the fps display and some labels
-        self.fps_display = None # clock.ClockDisplay()
+        self.fps_display = clock.ClockDisplay() # None 
         clBlack = (0,0,0, 255)
         self.labels = {
             'mouse':  Label('', x=5, y=self.height-20, color=clBlack),
@@ -144,6 +145,10 @@ class BoxWorldWindow(pyglet.window.Window):
                 cfg['BOXUSED_ON'] = not cfg['BOXUSED_ON']
             elif symbol == key.P:
                 cfg['PATH_ON'] = not cfg['PATH_ON']
+            elif symbol == key.R:
+                for agent in self.world.agents:
+                    agent.position_in_random_box()
+                self.plan_path()
             elif symbol == key.T:
                 cfg['TREE_ON'] = not cfg['TREE_ON']
 
@@ -175,11 +180,17 @@ class BoxWorldWindow(pyglet.window.Window):
     def plan_path(self):
         self.world.plan_path(search_modes[self.search_mode], self.limit)
         self._update_label('status', 'path planned')
-        print(self.world.path.report(verbose=3))
+        # print(self.world.path.report(verbose=3))
+        for agent in self.world.agents:
+        	print("Agent path: " + agent.path.report(verbose=3))
 
     def on_draw(self):
         self.clear()
+        self.draw()
+
+    def draw(self):
         self.world.draw()
+
         if self.fps_display:
             self.fps_display.draw()
         for key, label in list(self.labels.items()):
@@ -194,7 +205,15 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         filename = sys.argv[1]
     else:
-        filename = "map1.txt"
+        filename = "map2.txt"
     window = BoxWorldWindow(filename)
-    pyglet.app.run()
+    #pyglet.app.run()
 
+    while not window.has_exit:
+        window.dispatch_events()
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+        # show nice FPS bottom right (default)
+        delta = clock.tick()
+        window.world.update(delta)
+        window.draw()
+        window.flip()
