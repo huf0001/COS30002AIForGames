@@ -69,6 +69,7 @@ class Agent(object):
         # self.force = Vector2D(0,0)  # current steering force
         # self.accel = Vector2D(0,0) # current acceleration due to force
         self.radius = radius
+        self.radius_standard = radius
         # self.hiding_spots = []
         # self.best_hiding_spot = None
 
@@ -98,6 +99,7 @@ class Agent(object):
 
         # avoidance variables
         self.avoid_radius = 2 * self.radius
+        self.avoid_radius_standard = self.avoid_radius
         self.sensor_pos = Vector2D()
         self.obst_detected = False
         self.sensor_obst_detected = False
@@ -138,8 +140,11 @@ class Agent(object):
     # The central logic of the Agent class ------------------------------------------------
 
     def update(self, delta):
-        if self.path == None:
-            self.get_wander_path()
+        if self.agent_type == "soldier":
+        	self.update_soldier(delta)
+        elif self.agent_type == "fugitive":
+        	self.update_fugitive(delta)
+
         self.follow_graph_path(delta)
         self.box = self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y))
 
@@ -169,8 +174,10 @@ class Agent(object):
         #     self.update_target(delta)
 
     def update_soldier(self, delta):
-        pass
-        #self.move(delta)
+        self.update_fov(self.world.agents)
+
+        if self.path == None:
+            self.get_wander_path()
 
     # def hungry(self):
     #     if self.hunger >= 50:
@@ -204,8 +211,8 @@ class Agent(object):
     #     return False
 
     def update_fugitive(self, delta):
-        pass
-        #self.move(delta)
+        if self.path == None:
+            self.get_wander_path()
 
     def choose_weapon(self):
         if self.movement_mode == 'Exchange Weapons':
@@ -358,7 +365,7 @@ class Agent(object):
         else:
             egi.orange_pen()
 
-        if self.agent_type == 'target':
+        if self.agent_type == 'fugitive':
             egi.circle(self.pos, self.radius)
             egi.circle(self.pos, self.radius * 2 / 3)
             egi.circle(self.pos, self.radius / 3)
@@ -370,8 +377,8 @@ class Agent(object):
                 egi.cross(self.current_pt, 10)
                 egi.circle(self.current_pt, 10)
                 egi.cross(self.next_pt, 10)
-        elif self.agent_type == 'shooter':
-            self.path.render()
+        elif self.agent_type == 'soldier':
+            # self.path.render()
 
             egi.circle(self.pos, self.radius)
 
@@ -384,7 +391,7 @@ class Agent(object):
                 if self.movement_mode == 'Attack':
                     egi.red_pen()
                 else:
-                    egi.set_pen_color(name='WHITE')
+                    egi.orange_pen()
 
                 egi.circle(self.pos, self.hunt_dist)
                 egi.line(pos1=self.fov_markers[0], pos2=self.fov_markers[1])
@@ -1033,7 +1040,7 @@ class Agent(object):
     def speed(self):
         return self.vel.length()
 
-    def update_fov(self, obstacles, agents):
+    def update_fov(self, agents):
         crossed_obj = False
         max_fov_length = self.avoid_radius * 20
         fov_length = self.radius
@@ -1045,13 +1052,10 @@ class Agent(object):
 
         offset = 5 * self.scale_scalar
 
-        if self.world.obstacles_enabled:
-            objects = obstacles + agents
-        else:
-            objects = agents.copy()
+        agents = agents.copy()
 
-        if self in objects:
-            objects.remove(self)
+        if self in agents:
+            agents.remove(self)
 
         while not crossed_obj and fov_length < max_fov_length: 
             fovm = Vector2D(fov_length, -offset)
@@ -1069,14 +1073,22 @@ class Agent(object):
             fovm = Vector2D(fov_length, offset)
             markers.append(self.world.transform_point(fovm, self.pos, self.heading, self.side))
             
-            for obj in objects:
-                for marker in markers:
-                    if obj.distance(marker) < obj.radius:
-                        crossed_obj = True
-                        overshoot = obj.radius - obj.distance(fov_marker)
+            for marker in markers:
+                box = self.world.get_box_by_pos(int(marker.x), int(marker.y))
 
-                        if obj == self.world.target:
-                            self.see_target = True
+                if box is not None and box.kind == "X":
+                    crossed_obj = True
+                    overshoot = box.radius - self.distance(box._vc)
+
+            if not crossed_obj:
+                for a in agents:
+                    for marker in markers:
+                        if a.distance(marker) < a.radius:
+                            crossed_obj = True
+                            overshoot = a.radius - a.distance(fov_marker)
+
+                            if a in self.world.targets:
+                                self.see_target = True
 
             if not crossed_obj:
                 fov_length += self.radius

@@ -159,7 +159,14 @@ class EasyGraphics(object):
     def circle(self, pos, radius, filled=False, slices=0):
         glPushMatrix()
         glTranslatef(pos.x, pos.y, 0.0)
-        gluDisk(self.qobj, 0, radius, 32, 1) # default style (filled? line?)
+
+        if filled:
+            while radius > 0:
+                gluDisk(self.qobj, 0, radius, 32, 1)
+                radius -= self.stroke * 0.4
+        else:
+            gluDisk(self.qobj, 0, radius, 32, 1)
+
         glPopMatrix()
 
     # ----- COLOUR/STROKE STUFF -----

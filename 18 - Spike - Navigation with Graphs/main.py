@@ -101,7 +101,15 @@ class BoxWorldWindow(pyglet.window.Window):
                 box = self.world.get_box_by_pos(x,y)
                 if box:
                     if self.mouse_mode is not 'target':
+                        # start_kind = box.kind
                         box.set_kind(self.mouse_mode)
+
+                        # if box.kind != start_kind:
+                        #     if start_kind == "X":
+                        #         self.world.walls.remove(box)
+                        #     elif box.kind == "X":
+                        #         self.world.walls.add(box)
+
                     self.world.reset_navgraph()
                     self.plan_path()
                     self._update_label('status','graph changed')
@@ -144,10 +152,10 @@ class BoxWorldWindow(pyglet.window.Window):
             elif symbol == key.O:
                 cfg['PATH_ON'] = not cfg['PATH_ON']
             elif symbol == key.P:
-            	self.world.paused = not self.world.paused
+                self.world.paused = not self.world.paused
             elif symbol == key.R:
-                # for agent in self.world.agents:
-                #     agent.position_in_random_box()
+                for agent in self.world.agents:
+                    agent.position_in_random_box()
                 self.world.set_targets(len(self.world.targets))
                 self.plan_path()
             elif symbol == key.T:
@@ -183,7 +191,7 @@ class BoxWorldWindow(pyglet.window.Window):
         self._update_label('status', 'path planned')
         # print(self.world.path.report(verbose=3))
         for agent in self.world.agents:
-        	print("Agent path: " + agent.path.report(verbose=3))
+            print("Agent path: " + agent.path.report(verbose=3))
 
     def on_draw(self):
         self.clear()

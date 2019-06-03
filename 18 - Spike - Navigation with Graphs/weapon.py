@@ -7,6 +7,7 @@ class Weapon (object):
         self.name = name
         self.cooldown = cooldown
         self.effective_range = effective_range
+        self.effective_range_standard = effective_range
         self.speed = speed
         self.damage = damage
         self.damage_factor = damage_factor
