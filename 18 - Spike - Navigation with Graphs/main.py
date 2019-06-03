@@ -27,8 +27,7 @@ class BoxWorldWindow(pyglet.window.Window):
         key._2: 'mud',
         key._3: 'water',
         key._4: 'wall',
-        key._5: 'start',
-        key._6: 'target',
+        key._5: 'target'
     }
     mouse_mode = 'wall'
 
@@ -56,9 +55,12 @@ class BoxWorldWindow(pyglet.window.Window):
         #create a world for graph searching
         #filename = kwargs['filename'] #"boxworld2.txt"
         #filename = 'map2.txt'
+        self.search_mode = 3
         self.world = BoxWorld.FromFile(filename, self.get_size())
+        self.world.window = self
         self.world.reset_navgraph()
         self.world.set_agents()
+        self.world.set_targets(4)
 
         # prep the fps display and some labels
         self.fps_display = clock.ClockDisplay() # None 
@@ -98,11 +100,7 @@ class BoxWorldWindow(pyglet.window.Window):
             if button == 1: # left
                 box = self.world.get_box_by_pos(x,y)
                 if box:
-                    if self.mouse_mode == 'start':
-                        self.world.set_start(box.node.idx)
-                    elif self.mouse_mode == 'target':
-                        self.world.set_target(box.node.idx)
-                    else:
+                    if self.mouse_mode is not 'target':
                         box.set_kind(self.mouse_mode)
                     self.world.reset_navgraph()
                     self.plan_path()
@@ -143,11 +141,14 @@ class BoxWorldWindow(pyglet.window.Window):
                 cfg['BOXLINES_ON'] = not cfg['BOXLINES_ON']
             elif symbol == key.U:
                 cfg['BOXUSED_ON'] = not cfg['BOXUSED_ON']
-            elif symbol == key.P:
+            elif symbol == key.O:
                 cfg['PATH_ON'] = not cfg['PATH_ON']
+            elif symbol == key.P:
+            	self.world.paused = not self.world.paused
             elif symbol == key.R:
-                for agent in self.world.agents:
-                    agent.position_in_random_box()
+                # for agent in self.world.agents:
+                #     agent.position_in_random_box()
+                self.world.set_targets(len(self.world.targets))
                 self.plan_path()
             elif symbol == key.T:
                 cfg['TREE_ON'] = not cfg['TREE_ON']

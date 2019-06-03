@@ -17,6 +17,8 @@ from datetime import datetime, time, timedelta
 from searches import SEARCHES
 from pyglet import clock
 
+search_modes = list(SEARCHES.keys())
+
 AGENT_MODES = {
     KEY._1: 'seek',
     KEY._2: 'arrive_slow',
@@ -39,7 +41,7 @@ class Agent(object):
         'fast': 0.3
     }
 
-    def __init__(self, world=None, scale=30.0, agent_type=None, movement_mode=None, combat_mode=None, weapons=[], radius=10.0, pos=None, box=None, path=None):
+    def __init__(self, world=None, scale=30.0, agent_type="fugitive", movement_mode=None, combat_mode=None, weapons=[], radius=10.0, pos=None, box=None, path=None):
         # keep a reference to the world object
         self.world = world
         self.agent_type = agent_type
@@ -51,7 +53,7 @@ class Agent(object):
         self.health = 100
         self.start_health = 100
 
-        if self.agent_type == 'shooter':
+        if self.agent_type == 'soldier':
             self.health = self.health ** 3
 
         # scaling variables
@@ -126,7 +128,7 @@ class Agent(object):
         self.hunger = 0
         self.last_hunger_ping = None
 
-        if self.agent_type == 'shooter':
+        if self.agent_type == 'soldier':
             self.world.change_weapons(self)
 
         self.last_aware_time = None
@@ -134,9 +136,10 @@ class Agent(object):
     # The central logic of the Agent class ------------------------------------------------
 
     def update(self, delta):
-        if self.path is not None:
-            self.follow_graph_path(delta)
-            self.box = self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y))
+        if self.path == None:
+            self.get_wander_path()
+        self.follow_graph_path(delta)
+        self.box = self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y))
 
         # if moved:
         #     self.box = self.world.get_box_by_pos(x,y)
@@ -163,7 +166,7 @@ class Agent(object):
         # elif self.agent_type == 'target':
         #     self.update_target(delta)
 
-    def update_shooter(self, delta):
+    def update_soldier(self, delta):
         pass
         #self.move(delta)
 
@@ -197,6 +200,10 @@ class Agent(object):
     #             return True
 
     #     return False
+
+    def update_fugitive(self, delta):
+        pass
+        #self.move(delta)
 
     def choose_weapon(self):
         if self.movement_mode == 'Exchange Weapons':
@@ -238,10 +245,6 @@ class Agent(object):
             self.next_weapon()
 
         return True
-
-    def update_target(self, delta):
-        pass
-        #self.move(delta)
 
     def move(self, delta):
         force = Vector2D()
@@ -311,7 +314,7 @@ class Agent(object):
 
         return force
 
-    def calculate_target(self, delta):
+    def calculate_fugitive(self, delta):
         pass
         # if self.movement_mode == 'Wander' or self.world.shooter == None:
         #     return self.wander(delta)
@@ -320,7 +323,7 @@ class Agent(object):
 
         # return Vector2D(0,0)
 
-    def calculate_shooter(self, delta):
+    def calculate_soldier(self, delta):
         pass
         # if self.movement_mode == 'Get Food':
         #     return self.arrive(self.world.food_station, 'slow')
@@ -339,7 +342,7 @@ class Agent(object):
         #render agent
         egi.set_stroke(2)
 
-        if self.path is not None:
+        if self.path is not None and self.world.cfg['PATH_ON']:
             egi.red_pen()
             path = self.path.path
             egi.line_by_pos(self.pos, self.world.boxes[path[0]]._vc)
@@ -891,6 +894,21 @@ class Agent(object):
 
         return None
 
+    def get_wander_path(self):
+        target = self.world.boxes[randrange(0, len(self.world.boxes))]
+
+        while target.kind == "X":
+            target = self.world.boxes[randrange(0, len(self.world.boxes))]
+    
+        if self.target is not None:
+            self.world.targets.remove(self.target)
+    
+        self.target = target
+        self.world.targets.append(target)
+
+        self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
+        print("Agent path: " + self.path.report(verbose=3))
+
     def update_hunt_dist(self):
         dist_multiplier = 1.25
 
@@ -988,7 +1006,7 @@ class Agent(object):
         specified in `search`.
         '''
         cls = SEARCHES[search]
-        self.path = cls(self.world.graph, self.box.idx, self.world.target.idx, limit)
+        self.path = cls(self.world.graph, self.box.idx, self.target.idx, limit)
 
     def position_in_random_box(self):
         self.box = self.world.boxes[randrange(0, len(self.world.boxes))]
@@ -996,7 +1014,7 @@ class Agent(object):
         while self.box.kind == "X":
             self.box = self.world.boxes[randrange(0, len(self.world.boxes))]
         
-        self.pos = self.box._vc
+        self.pos = self.box._vc.copy()
 
     def randomise_path(self):
         num_pts = 4

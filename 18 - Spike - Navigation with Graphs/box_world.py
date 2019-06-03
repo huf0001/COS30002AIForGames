@@ -55,6 +55,7 @@ from graph import SparseGraph, Node, Edge
 from searches import SEARCHES
 from math import hypot
 from agent import Agent
+from random import random, randrange, uniform
 
 
 box_kind = ['.','m','~','X']
@@ -224,8 +225,11 @@ class BoxWorld(object):
         self.graph = None
         self.diagonal = '_max'
         self.reset_navgraph()
-        self.start = None
-        self.target = None
+        #self.start = None
+        self.targets = []
+        self.paused = False
+        self.window = None
+        self.cfg = cfg
 
     def get_box_by_index(self, ix, iy):
         idx = (self.nx * iy) + ix
@@ -236,8 +240,9 @@ class BoxWorld(object):
         return self.boxes[idx] if idx < len(self.boxes) else None
 
     def update(self, delta):
-        for agent in self.agents:
-        	agent.update(delta)
+    	if not self.paused:
+            for agent in self.agents:
+                agent.update(delta)
 
     def draw(self):
         for box in self.boxes:
@@ -297,7 +302,7 @@ class BoxWorld(object):
             coords = (y + self.wy -1, x + self.wx -1, y, x)
             self.boxes[i].reposition(coords)
         for agent in self.agents:
-        	agent.pos = agent.box._vc
+            agent.pos = agent.box._vc
         self.scale_multiplier = Point2D(cx / self.original_cx, cy / self.original_cy)
 
 
@@ -387,31 +392,54 @@ class BoxWorld(object):
                 self._add_edge(i, j+1, 1.4142)
 
     def set_agents(self):
+        self.agents.append(Agent(world=self, agent_type="soldier"))
         self.agents.append(Agent(world=self))
+        self.agents.append(Agent(world=self))
+        self.agents.append(Agent(world=self))
+        
 
 
+    # def set_start(self, idx):
+    #     '''Set the start box based on its index idx value. '''
+    #     # remove any existing start node, set new start node
+    #     # if self.target == self.boxes[idx]:
+    #     #     print("Can't have the same start and end boxes!")
+    #     #     return
+    #     # if self.start:
+    #     #     self.start.marker = None
+    #     # self.start = self.boxes[idx]
+    #     # self.start.marker = 'S'
 
-    def set_start(self, idx):
-        '''Set the start box based on its index idx value. '''
-        # remove any existing start node, set new start node
-        if self.target == self.boxes[idx]:
-            print("Can't have the same start and end boxes!")
-            return
-        if self.start:
-            self.start.marker = None
-        self.start = self.boxes[idx]
-        self.start.marker = 'S'
+    # def set_target(self, target_num, box):
+    #     '''Set the target box based on its index idx value. '''
+    #     # remove any existing target node, set new target node
+    #     if self.start == self.boxes[box]:
+    #         print("Can't have the same start and end boxes!")
+    #         return
+    #     if self.targets[target_num] is not None:
+    #         self.targets[target_num].marker = None
+    #     self.targets[target_num] = self.boxes[box]
+    #     self.targets[target_num].marker = str(target_num)
 
-    def set_target(self, idx):
-        '''Set the target box based on its index idx value. '''
-        # remove any existing target node, set new target node
-        if self.start == self.boxes[idx]:
-            print("Can't have the same start and end boxes!")
-            return
-        if self.target is not None:
-            self.target.marker = None
-        self.target = self.boxes[idx]
-        self.target.marker = 'T'
+    def set_targets(self, count):
+        # for target in self.targets:
+        #     target.marker = None
+
+        self.targets = []
+        existing = []
+        i = 0
+        
+        while len(self.targets) < count:
+            box_idx = randrange(0, len(self.boxes))
+
+            while self.boxes[box_idx].kind == "X" or box_idx in existing:
+                box_idx = randrange(0, len(self.boxes))
+
+            existing.append(box_idx)
+            self.targets.append(self.boxes[box_idx])
+            # self.targets[i].marker = str(i)
+            self.agents[i].target = self.targets[i]
+            i += 1
 
     def plan_path(self, search, limit):
         '''Conduct a nav-graph search from the current world start node to the
@@ -420,7 +448,7 @@ class BoxWorld(object):
         '''
 
         for agent in self.agents:
-        	agent.plan_path(search, limit)
+            agent.plan_path(search, limit)
 
     @classmethod
     def FromFile(cls, filename, pixels=(500,500) ):
@@ -442,8 +470,8 @@ class BoxWorld(object):
         world = BoxWorld(nx, ny, cx, cy)
         # Get and set the Start and Target tiles
         s_idx, t_idx = [int(bit) for bit in lines.pop(0).split()]
-        world.set_start(s_idx)
-        world.set_target(t_idx)
+        # world.set_start(s_idx)
+        # world.set_target(t_idx)
         # Ready to process each line
         assert len(lines) == ny, "Number of rows doesn't match data."
         # read each line
