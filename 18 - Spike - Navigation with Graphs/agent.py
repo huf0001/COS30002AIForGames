@@ -132,6 +132,8 @@ class Agent(object):
             self.world.change_weapons(self)
 
         self.last_aware_time = None
+        self.current_node_box = None
+        self.current_node_pos = None
 
     # The central logic of the Agent class ------------------------------------------------
 
@@ -345,10 +347,10 @@ class Agent(object):
         if self.path is not None and self.world.cfg['PATH_ON']:
             egi.red_pen()
             path = self.path.path
-            egi.line_by_pos(self.pos, self.world.boxes[path[0]]._vc)
+            egi.line_by_pos(self.pos, self.world.boxes[path[0]].get_vc("agent.render(), line from agent to box").copy())
 
             for i in range(1,len(path)):
-                egi.line_by_pos(self.world.boxes[path[i-1]]._vc, self.world.boxes[path[i]]._vc)
+                egi.line_by_pos(self.world.boxes[path[i-1]].get_vc("agent.render(), line from this to box").copy(), self.world.boxes[path[i]].get_vc("agent.render(), line from box to this").copy())
 
 
         if self.hit_time is not None:
@@ -569,18 +571,21 @@ class Agent(object):
         if path is not None and len(path) == 0:
             return
 
-        path_node = Vector2D(self.world.boxes[path[0]]._vc.x, self.world.boxes[path[0]]._vc.y)
-        to_path_node = (path_node - self.pos).normalise() * self.max_speed * delta
+        to_current_node = (self.current_node_pos - self.pos).normalise() * self.max_speed * delta
 
-        self.pos.x = self.pos.x + (to_path_node.x * self.world.scale_multiplier.x)
-        self.pos.y = self.pos.y + (to_path_node.y * self.world.scale_multiplier.y)
+        self.pos.x = self.pos.x + (to_current_node.x * self.world.scale_multiplier.x)
+        self.pos.y = self.pos.y + (to_current_node.y * self.world.scale_multiplier.y)
 
-        if self.distance(path_node) < self.radius * 0.5:
+        if self.distance(self.current_node_pos) < self.radius * 0.5:
             if len(path) > 1:
                 self.path.path.remove(self.path.path[0])
                 #self.box = self.world.boxes[self.path.path[0]]
+                self.current_node_box = self.world.boxes[path[0]]
+                self.current_node_pos = self.current_node_box.get_vc("agent.follow_graph_path()").copy() 
             else:
                 self.path = None
+                self.current_node_box = None
+                self.current_node_pos = None
 
 
         #  def __init__(self, graph, route, target_idx, open, closed, steps):
@@ -1007,6 +1012,8 @@ class Agent(object):
         '''
         cls = SEARCHES[search]
         self.path = cls(self.world.graph, self.box.idx, self.target.idx, limit)
+        self.current_node_box = self.world.boxes[self.path.path[0]]
+        self.current_node_pos = self.current_node_box.get_vc("agent.plan_path()").copy()
 
     def position_in_random_box(self):
         self.box = self.world.boxes[randrange(0, len(self.world.boxes))]
@@ -1014,7 +1021,7 @@ class Agent(object):
         while self.box.kind == "X":
             self.box = self.world.boxes[randrange(0, len(self.world.boxes))]
         
-        self.pos = self.box._vc.copy()
+        self.pos = self.box.get_vc("agent.position_in_random_box()").copy()
 
     def randomise_path(self):
         num_pts = 4

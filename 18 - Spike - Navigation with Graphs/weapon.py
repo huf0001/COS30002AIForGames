@@ -1,12 +1,4 @@
-from vector2d import Vector2D
-from vector2d import Point2D
-from graphics import egi, KEY
-from math import sin, cos, radians, sqrt
-from random import random, randrange, uniform
-from path import Path
-from hiding_spot import HidingSpot
 from projectile import Projectile
-from datetime import datetime, time, timedelta
 
 class Weapon (object):
     def __init__(self, world=None, owner=None, name='', cooldown=1, effective_range=100, damage=25, reload_time=1, magazine_size=8, magazines=3, accuracy_modifier=0, speed=500, stamina_drain=0, damage_factor=1, explosive=False, explosion_radius=0):

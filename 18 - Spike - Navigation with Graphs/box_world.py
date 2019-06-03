@@ -56,6 +56,8 @@ from searches import SEARCHES
 from math import hypot
 from agent import Agent
 from random import random, randrange, uniform
+from weapon import Weapon
+from vector2d import Vector2D
 
 
 box_kind = ['.','m','~','X']
@@ -124,6 +126,11 @@ class Box(object):
         self.marker_label = None
         # position using coordinates
         self.reposition(coords)
+        self.last_accessor = ""
+
+    def get_vc(self, accessor):
+    	self.last_accessor = accessor
+    	return self._vc
 
     def reposition(self, coords):
         # top, right, bottom, left
@@ -136,7 +143,8 @@ class Box(object):
             Point2D(pts[3], pts[2])  # bottom left
         )
         # vector-centre point
-        self._vc = Point2D((pts[1]+pts[3])/2.0, (pts[0]+pts[2])/2.0)
+        self._vc = Vector2D((pts[1]+pts[3])/2.0, (pts[0]+pts[2])/2.0)
+        self.position = Vector2D((pts[1]+pts[3])/2.0, (pts[0]+pts[2])/2.0)
         # labels may need to be updated
         self._reposition_labels()
 
@@ -206,6 +214,8 @@ class BoxWorld(object):
 
     def __init__(self, nx, ny, cx, cy):
         self.agents = []
+        self.weapons = []
+        self.set_weapons()
         self.boxes = [None]*nx*ny
         self.nx, self.ny = nx, ny # number of box (squares)
 
@@ -243,6 +253,11 @@ class BoxWorld(object):
     	if not self.paused:
             for agent in self.agents:
                 agent.update(delta)
+
+            for box in self.boxes:
+            	if box._vc != box.position:
+            		# print("Box " + str(box.idx) + " has been moved by " + box.last_accessor)
+            		box._vc = box.position.copy()
 
     def draw(self):
         for box in self.boxes:
@@ -294,6 +309,7 @@ class BoxWorld(object):
         self.cx, self.cy = cx, cy # world size
         self.wx = (cx-1) // self.nx
         self.wy = (cy-1) // self.ny # int div - box width/height
+
         for i in range(len(self.boxes)):
             # basic positions (bottom left to top right)
             x = (i % self.nx) * self.wx
@@ -301,8 +317,13 @@ class BoxWorld(object):
             # top, right, bottom, left
             coords = (y + self.wy -1, x + self.wx -1, y, x)
             self.boxes[i].reposition(coords)
+
         for agent in self.agents:
             agent.pos = agent.box._vc
+
+            if agent.current_node_box != None:
+                agent.current_node_pos = agent.current_node_box._vc
+
         self.scale_multiplier = Point2D(cx / self.original_cx, cy / self.original_cy)
 
 
@@ -397,7 +418,106 @@ class BoxWorld(object):
         self.agents.append(Agent(world=self))
         self.agents.append(Agent(world=self))
         
+    def set_weapons(self):
+    	# add weapons
+	    self.weapons.append(Weapon(
+	        world = self, 
+	        name = 'Rifle', 
+	        cooldown = 1.5,                 # max rpm of 0.5 sec / round
+	        effective_range = 10 * 2300,    # effective range 2300 m
+	        speed = 1000,
+	        damage = 50, 
+	        damage_factor = 1,
+	        reload_time = 2.6, 
+	        magazine_size = 4, 
+	        magazines = 1,#6, 
+	        accuracy_modifier = 0,
+	        stamina_drain=4))
+	    self.weapons.append(Weapon(
+	        world = self, 
+	        name = 'Rocket', 
+	        cooldown = 1.5,                 # max rpm of 0.6 sec / round 
+	        effective_range = 5 * 160,      # estimated effective range 160 m
+	        speed = 250,
+	        damage = 6,                     # explosive; does damage over time
+	        damage_factor = 20,
+	        reload_time = 3, 
+	        magazine_size = 2, 
+	        magazines = 1,#4, 
+	        accuracy_modifier = 0,
+	        stamina_drain=5)) 
+	    self.weapons.append(Weapon(
+	        world = self, 
+	        name = 'Hand Gun', 
+	        cooldown = 0.286,               # max rpm
+	        effective_range = 5 * 122.7,    # effective range 122.7 m
+	        speed = 1000,
+	        damage = 20, 
+	        damage_factor = 1,
+	        reload_time = 1.8, 
+	        magazine_size = 12, 
+	        magazines = 1,#10, 
+	        accuracy_modifier = 50,
+	        stamina_drain=2))
+	    self.weapons.append(Weapon(
+	        world = self, 
+	        name = 'Hand Grenade', 
+	        cooldown = 2,                   # estimated max rpm of 2 sec / round 
+	        effective_range = 5 * 75,       # estimated effective range 75 m
+	        speed = 250,
+	        damage = 4,                     # explosive; does damage over time
+	        damage_factor = 20,
+	        reload_time = 2, 
+	        magazine_size = 8, 
+	        magazines = 1,#2, 
+	        accuracy_modifier = 50,
+	        stamina_drain=1))
+	    self.weapons.append(Weapon(
+	        world = self, 
+	        name = 'Shotgun', 
+	        cooldown = 1,                   # max rpm of 1 sec / round
+	        effective_range = 30 * 5,       # estimated effective range 5 m 
+	        speed = 1000,
+	        damage = 20,                    # multiple pellets; damage is spread out amongst them
+	        damage_factor = 3,
+	        reload_time = 6, 
+	        magazine_size = 12, 
+	        magazines = 1,#5, 
+	        accuracy_modifier = 50,
+	        stamina_drain=3))
 
+    def change_weapons(self, soldier):
+        if len(soldier.weapons) > 0:
+            for weapon in soldier.weapons:
+                weapon.owner = None
+
+        available = self.weapons.copy()
+        soldier.weapons = []
+        
+        while len(soldier.weapons) < 2:
+            if len(available) > 1:
+                weapon = available[randrange(0, len(available) - 1)]
+            else:
+                weapon = available[0]
+
+            self.replenish_weapon(weapon)
+            soldier.weapons.append(weapon)
+            weapon.owner = soldier
+            available.remove(weapon)
+
+    def replenish_weapon(self, weapon):
+        weapon.rounds_left_in_magazine = 0
+
+        if weapon.name == 'Rifle':
+            weapon.magazines_left = 1#6
+        elif weapon.name == 'Rocket':
+            weapon.magazines_left = 1#4
+        elif weapon.name == 'Hand Gun':
+            weapon.magazines_left = 1#10
+        elif weapon.name == 'Hand Grenade':
+            weapon.magazines_left = 1#2
+        elif weapon.name == 'Shotgun':
+            weapon.magazines_left = 1#5
 
     # def set_start(self, idx):
     #     '''Set the start box based on its index idx value. '''
@@ -449,6 +569,21 @@ class BoxWorld(object):
 
         for agent in self.agents:
             agent.plan_path(search, limit)
+
+    def destroy_projectile(self, projectile):
+        print('Destroying projectile. Projectile pool length: ' + str(len(projectile.weapon.projectile_pool)) + '.')
+
+        # remove projectile from world so that it does not render or update
+        if projectile in self.projectiles:
+            self.projectiles.remove(projectile)
+
+        # return projectile to shooter's projectile pool
+        projectile.vel = None
+        projectile.target = None
+        projectile.explosion_time = None
+
+        projectile.weapon.projectile_pool.append(projectile)
+        print('Destroyed projectile. Projectile pool length: ' + str(len(projectile.weapon.projectile_pool)))
 
     @classmethod
     def FromFile(cls, filename, pixels=(500,500) ):
