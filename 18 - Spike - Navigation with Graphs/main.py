@@ -101,14 +101,14 @@ class BoxWorldWindow(pyglet.window.Window):
                 box = self.world.get_box_by_pos(x,y)
                 if box:
                     if self.mouse_mode is not 'target':
-                        # start_kind = box.kind
+                        start_kind = box.kind
                         box.set_kind(self.mouse_mode)
 
-                        # if box.kind != start_kind:
-                        #     if start_kind == "X":
-                        #         self.world.walls.remove(box)
-                        #     elif box.kind == "X":
-                        #         self.world.walls.add(box)
+                        if box.kind != start_kind:
+                            if start_kind == "X":
+                                self.world.walls.remove(box)
+                            elif box.kind == "X":
+                                self.world.walls.add(box)
 
                     self.world.reset_navgraph()
                     self.plan_path()

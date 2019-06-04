@@ -234,7 +234,8 @@ class BoxWorld(object):
         self.cx = self.cy = self.wx = self.wy = None
         self.original_cx = cx
         self.original_cy = cy
-        self.scale_multiplier = Point2D(1, 1)
+        self.scale_scalar = 1
+        self.scale_vector = Point2D(1, 1)
         self.resize(cx, cy)
 
         # create nav_graph
@@ -248,7 +249,7 @@ class BoxWorld(object):
         self.window = None
         self.cfg = cfg
 
-        # self.walls = self.find_walls(self.boxes)
+        self.walls = self.find_walls(self.boxes)
 
     def get_box_by_index(self, ix, iy):
         idx = (self.nx * iy) + ix
@@ -258,14 +259,14 @@ class BoxWorld(object):
         idx = (self.nx * (y // self.wy)) + (x // self.wx)
         return self.boxes[idx] if idx < len(self.boxes) else None
 
-    # def find_walls(self, boxes):
-    #     walls = []
+    def find_walls(self, boxes):
+        walls = []
 
-    #     for box in boxes:
-    #         if box.kind = "X":
-    #             walls.append(box)
+        for box in boxes:
+            if box.kind == "X":
+                walls.append(box)
 
-    #     return walls
+        return walls
 
     def update(self, delta):
         if not self.paused:
@@ -335,8 +336,8 @@ class BoxWorld(object):
         self.wx = (cx-1) // self.nx
         self.wy = (cy-1) // self.ny # int div - box width/height
 
-        self.scale_multiplier = Point2D(cx / self.original_cx, cy / self.original_cy)
-        m = (self.scale_multiplier.x + self.scale_multiplier.y) / 2
+        self.scale_vector = Point2D(cx / self.original_cx, cy / self.original_cy)
+        self.scale_scalar = (self.scale_vector.x + self.scale_vector.y) / 2
 
         for i in range(len(self.boxes)):
             # basic positions (bottom left to top right)
@@ -347,8 +348,9 @@ class BoxWorld(object):
             self.boxes[i].reposition(coords)
 
         for agent in self.agents:
-            agent.radius = agent.radius_standard * m
-            agent.avoid_radius = agent.avoid_radius_standard * m
+            agent.radius = agent.radius_standard * self.scale_scalar
+            agent.avoid_radius = agent.avoid_radius_standard * self.scale_scalar
+            agent.awareness_radius = agent.awareness_radius_standard * self.scale_scalar
             agent.pos = agent.box._vc
 
             if agent.current_node_box != None:
@@ -357,7 +359,7 @@ class BoxWorld(object):
 
 
         for weapon in self.weapons:
-            weapon.effective_range = weapon.effective_range_standard * m
+            weapon.effective_range = weapon.effective_range_standard * self.scale_scalar
 
     def _add_edge(self, from_idx, to_idx, distance=1.0):
         b = self.boxes
