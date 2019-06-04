@@ -222,6 +222,7 @@ class BoxWorld(object):
     def __init__(self, nx, ny, cx, cy):
         self.agents = []
         self.weapons = []
+        self.projectiles = []
         self.set_weapons()
         self.boxes = [None]*nx*ny
         self.nx, self.ny = nx, ny # number of box (squares)
@@ -278,6 +279,9 @@ class BoxWorld(object):
                     # print("Box " + str(box.idx) + " has been moved by " + box.last_accessor)
                     box._vc = box.position.copy()
 
+            for projectile in self.projectiles:
+                projectile.update(delta)
+
     def draw(self):
         for box in self.boxes:
             box.draw()
@@ -331,6 +335,9 @@ class BoxWorld(object):
             # egi.circle(agent.pos, agent.radius)
             agent.render()
 
+        for projectile in self.projectiles:
+            projectile.render()
+
     def resize(self, cx, cy):
         self.cx, self.cy = cx, cy # world size
         self.wx = (cx-1) // self.nx
@@ -355,8 +362,6 @@ class BoxWorld(object):
 
             if agent.current_node_box != None:
                 agent.current_node_pos = agent.current_node_box._vc
-
-
 
         for weapon in self.weapons:
             weapon.effective_range = weapon.effective_range_standard * self.scale_scalar
@@ -651,6 +656,7 @@ class BoxWorld(object):
         projectile.vel = None
         projectile.target = None
         projectile.explosion_time = None
+        projectile.owner_on_firing = None
 
         projectile.weapon.projectile_pool.append(projectile)
         print('Destroyed projectile. Projectile pool length: ' + str(len(projectile.weapon.projectile_pool)))

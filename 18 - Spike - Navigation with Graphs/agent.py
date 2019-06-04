@@ -144,24 +144,29 @@ class Agent(object):
 
         self.target_enemy = None
 
+        self.last_new_box_time = None
+
     # The central logic of the Agent class ------------------------------------------------
 
     def update(self, delta):
-        if self.agent_type == "soldier":
-            self.update_soldier(delta)
-        elif self.agent_type == "fugitive":
-            self.update_fugitive(delta)
+        if self.health <= 0:
+            self.position_in_random_box()
+            self.get_wander_path()
+            self.health = self.start_health
+            self.hit_time = None
 
-        self.update_heading()
-        self.box = self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y))
+            for agent in self.world.agents:
+                if agent.agent_type is not self.agent_type and agent.target_enemy == self:
+                    agent.target_enemy = None
+                    agent.get_wander_path()
 
-        
+        if self.last_new_box_time is not None and (datetime.now() - self.last_new_box_time).total_seconds() > 3:
+            self.last_new_box_time = datetime.now()
+            self.get_wander_path()
+            print("overriding timed out path with wander path")
 
-        # if self.health <= 0:
-        #     self.world.destroy_agent(self)
-
-        # if self.hit_time is not None and (datetime.now() - self.hit_time).total_seconds() > 0.1:
-        #     self.hit_time = None
+        if self.hit_time is not None and (datetime.now() - self.hit_time).total_seconds() > 0.1:
+            self.hit_time = None
 
         # self.obst_detected = False
         # self.sensor_obst_detected = False
@@ -169,10 +174,17 @@ class Agent(object):
         # sns_pos = Vector2D(min(self.avoid_radius * 2, self.vel.length()), 0)
         # self.sensor_pos = self.world.transform_point(sns_pos, self.pos, self.heading, self.side)
 
-        # if self.agent_type == 'shooter':
-        #     self.update_shooter(delta)
-        # elif self.agent_type == 'target':
-        #     self.update_target(delta)
+        if self.agent_type == "soldier":
+            self.update_soldier(delta)
+        elif self.agent_type == "fugitive":
+            self.update_fugitive(delta)
+
+        self.update_heading()
+        box = self.box
+        self.box = self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y))
+
+        if box is not self.box:
+            self.last_new_box_time = datetime.now()
 
     def update_soldier(self, delta):
         self.awareness_pos = Vector2D(self.awareness_radius * 0.625, 0)
@@ -198,7 +210,7 @@ class Agent(object):
             if self.path is not None and len(self.path.path) > 0 and self.target_enemy is not None and self.target_enemy.box is not self.target:
                 self.target = self.target_enemy.box
                 self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
-                print("target moved to box " + str(self.target.idx))
+                # print("target moved to box " + str(self.target.idx))
 
             if self.choose_weapon():
                 if self.see_target:
@@ -231,15 +243,16 @@ class Agent(object):
                 if self.movement_mode == 'Attack' and self.combat_mode == 'Aiming':
                     if len(self.weapons[0].projectile_pool) == 0:
                         self.combat_mode = 'No Projectiles Pooled'
-                    else:
+                    elif self.target_enemy is not None:
                         target = self.aim_shot(self.target_enemy)
 
                         if target is not None:
-                            print("BANG!")
-                        #     self.combat_mode = 'Shooting'
-                        #     self.last_shot = datetime.now()
-                        #     self.weapons[0].rounds_left_in_magazine -= 1
-                        #     self.shoot(target)
+                            self.combat_mode = 'Shooting'
+                            self.last_shot = datetime.now()
+                            self.weapons[0].rounds_left_in_magazine -= 1
+                            self.shoot(target)
+            else:
+                self.world.change_weapons(self)
 
         else:
             self.movement_mode = "Patrol"
@@ -471,7 +484,6 @@ class Agent(object):
     #     return force
 
     # def calculate_fugitive(self, delta):
-    #     pass
     #     # if self.movement_mode == 'Wander' or self.world.shooter == None:
     #     #     return self.wander(delta)
     #     # elif self.movement_mode == 'Escape':
@@ -480,7 +492,6 @@ class Agent(object):
     #     # return Vector2D(0,0)
 
     # def calculate_soldier(self, delta):
-    #     pass
     #     # if self.movement_mode == 'Get Food':
     #     #     return self.arrive(self.world.food_station, 'slow')
     #     # elif self.movement_mode == 'Exchange Weapons':
@@ -726,11 +737,11 @@ class Agent(object):
             return self.avoid(hunter_pos)
 
     def follow_graph_path(self, delta):
-        path = self.path.path
+        if self.path == None or len(self.path.path) == 0 or self.current_node_pos is None:
+            self.get_wander_path()
+            print("overriding none path with wander path")
 
-        # if path is not None and len(path) == 0:
-        #     self.path = None
-        #     return
+        path = self.path.path
 
         to_current_node = (self.current_node_pos - self.pos).normalise() * self.max_speed * delta
 
@@ -739,7 +750,7 @@ class Agent(object):
 
         if self.distance(self.current_node_pos) < self.radius * 0.5:
             if len(path) > 1:
-                self.path.path.remove(self.path.path[0])
+                path.remove(path[0])
                 self.current_node_box = self.world.boxes[path[0]]
                 self.current_node_pos = self.current_node_box.get_vc("agent.follow_graph_path()").copy() 
             else:
@@ -947,7 +958,11 @@ class Agent(object):
         boxes = self.world.boxes
 
         # target to current node
-        dist = (target.current_node_box.get_vc("agent.get_target_path_measurements(), target to current node") - target.pos).length()
+        if target.current_node_box is not None:
+            dist = (target.current_node_box.get_vc("agent.get_target_path_measurements(), target to current node") - target.pos).length()
+        else:
+            return None
+
         total_dist += dist
         result[0] = {"box": target.current_node_box, "dist": total_dist}
 
@@ -958,7 +973,6 @@ class Agent(object):
             dist = (boxes[path[0]].get_vc("agent.get_target_path_measurements(), current node to first node in path, path node") - target.current_node_box.get_vc("agent.get_target_path_measurements(), current node to first node in path, current node")).length()
             total_dist += dist
             result[1] = {"box": boxes[path[0]], "dist": total_dist}
-
 
             # first node in path to last node in path
             for i in range(1, len(path)):
@@ -972,17 +986,18 @@ class Agent(object):
         pos = Vector2D()
         dist = speed * time
         
-        i = len(path_measurements) - 1
+        if path_measurements is not None:
+            i = len(path_measurements) - 1
         
-        while i >= 0:
-            if dist > path_measurements[i]["dist"]:
-                pos = path_measurements[i]["box"].get_vc("agent.get_future_pos_on_path()").copy()
-                dif = dist - path_measurements[i]["dist"]
-                pos += target.heading * dif
+            while i >= 0:
+                if dist > path_measurements[i]["dist"]:
+                    pos = path_measurements[i]["box"].get_vc("agent.get_future_pos_on_path()").copy()
+                    dif = dist - path_measurements[i]["dist"]
+                    pos += target.heading * dif
 
-                return pos
+                    return pos
 
-            i -= 1
+                i -= 1
 
         return target.pos + (target.heading * dist)
 
@@ -1020,6 +1035,7 @@ class Agent(object):
 
             # add new projectile
             self.world.projectiles.append(p)
+            p.owner_on_firing = self
 
             loop -= 1
 
@@ -1095,7 +1111,7 @@ class Agent(object):
     def get_wander_path(self):
         target = self.world.boxes[randrange(0, len(self.world.boxes))]
 
-        while target.kind == "X":
+        while target.kind == "X" or target == self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y)):
             target = self.world.boxes[randrange(0, len(self.world.boxes))]
     
         if self.target is not None and self.target in self.world.targets:

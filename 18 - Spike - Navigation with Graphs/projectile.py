@@ -43,10 +43,12 @@ class Projectile(object):
         self.explosion_time = None
         self.explosion_multiplier = 1
 
+        self.owner_on_firing = None
+
     # The central logic of the Projectile class ---------------------------------------------------
 
     def update(self, delta):
-        if not self.left_barrel and self.distance(self.weapon.owner.pos) > self.weapon.owner.radius + self.radius:
+        if not self.left_barrel and self.distance(self.owner_on_firing.pos) > self.owner_on_firing.radius + self.radius:
             self.left_barrel = True
 
         if not self.exploding:
@@ -76,9 +78,9 @@ class Projectile(object):
                     
                     self.world.destroy_projectile(self)
         else:
-            self.radius += 0.1 * self.scale_scalar * self.explosion_multiplier
+            self.radius += 0.02 * self.scale_scalar * self.world.scale_scalar * self.explosion_multiplier
             
-            print("radius: " + str(self.radius))
+            # print("radius: " + str(self.radius))
             collided = self.collided()
 
             if len(collided) > 0:
@@ -112,17 +114,12 @@ class Projectile(object):
 
         if len(self.world.agents) > 0:
             for agent in self.world.agents:
-                if (self.left_barrel or agent is not self.weapon.owner) and self.distance(agent.pos) < self.radius + agent.radius:
+                if (self.left_barrel or agent is not self.owner_on_firing) and self.distance(agent.pos) < self.radius + agent.radius:
                     collided.append(agent)
 
-        if self.world.walls_enabled:
-            for wall in self.world.walls:
-                if self.distance(wall.get_pos(self.pos)) < self.radius:
-                    collided.append(True)
-        if self.world.obstacles_enabled:
-            for obstacle in self.world.obstacles:
-                if self.distance(obstacle.pos) < self.radius + obstacle.radius:
-                    collided.append(True)
+        for wall in self.world.walls:
+            if self.distance(wall.get_vc("projectile.collided()")) < self.radius + wall.radius:
+                collided.append(True)
 
         if self.target is not None and self.distance(self.target) < self.target_radius:
             collided.append(self.target)
