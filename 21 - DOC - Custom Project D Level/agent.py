@@ -41,7 +41,7 @@ class Agent(object):
         'fast': 0.3
     }
 
-    def __init__(self, world=None, scale=30.0, agent_type="fugitive", movement_mode=None, combat_mode=None, weapons=[], radius=10.0, pos=None, box=None, path=None):
+    def __init__(self, world=None, scale=30.0, agent_type="fugitive", movement_mode=None, combat_mode=None, weapons=[], radius=6.0, box=None, path=None):
         # keep a reference to the world object
         self.world = world
         self.agent_type = agent_type
@@ -78,8 +78,8 @@ class Agent(object):
         self.avoidance_range = 200.0
         #self.speed_limiter = speed_limiter
         # self.max_speed = 30 * self.scale_scalar #/ speed_limiter 
-        self.max_speed_standard = 100
-        self.max_speed = 100
+        self.max_speed_standard = 80
+        self.max_speed = 80
 
         # if self.agent_type == 'target':
         #     self.max_force = self.max_force * 0.5
@@ -112,13 +112,13 @@ class Agent(object):
         self.show_avoidance = False
 
         # where am i?
-        if pos == None:
+        if box == None:
             self.pos = None
             self.box = None
             self.position_in_random_box()
         else:
-            self.pos = pos
-            self.box = box
+            self.box = self.world.boxes[box]
+            self.pos = self.box.get_vc("agent init")
 
         # self.current_pt = None
         # self.next_pt = None
@@ -135,6 +135,7 @@ class Agent(object):
             self.world.change_weapons(self)
 
         self.last_aware_time = None
+        self.last_node_box = None
         self.current_node_box = None
         self.current_node_pos = None
 
@@ -142,9 +143,11 @@ class Agent(object):
         self.awareness_radius = 100
         self.awareness_pos = None
 
+        self.target = None
         self.target_enemy = None
+        self.following_enemy = False
 
-        self.last_new_box_time = None
+        self.last_new_node_time = None
 
     # The central logic of the Agent class ------------------------------------------------
 
@@ -160,8 +163,8 @@ class Agent(object):
                     agent.target_enemy = None
                     agent.get_wander_path()
 
-        if self.last_new_box_time is not None and (datetime.now() - self.last_new_box_time).total_seconds() > 3:
-            self.last_new_box_time = datetime.now()
+        if self.last_new_node_time is not None and not self.following_enemy and (datetime.now() - self.last_new_node_time).total_seconds() > 3:
+            self.last_new_node_time = datetime.now()
             self.get_wander_path()
             print("overriding timed out path with wander path")
 
@@ -180,11 +183,11 @@ class Agent(object):
             self.update_fugitive(delta)
 
         self.update_heading()
-        box = self.box
+        # box = self.box
         self.box = self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y))
 
-        if box is not self.box:
-            self.last_new_box_time = datetime.now()
+        # if box is not self.box:
+        #     self.last_new_box_time = datetime.now()
 
     def update_soldier(self, delta):
         self.awareness_pos = Vector2D(self.awareness_radius * 0.625, 0)
@@ -260,10 +263,17 @@ class Agent(object):
             if self.max_speed is not self.max_speed_standard:
                 self.max_speed = self.max_speed_standard
         
-        if self.target_enemy is not None and self.target == self.box:
-            self.follow_target_enemy(delta)
-        else:
-            self.follow_graph_path(delta)
+        if self.movement_mode == "Attack":
+            if self.target_enemy is not None and self.target == self.box:
+                self.follow_target_enemy(delta)
+            else:
+                self.follow_graph_path(delta)
+        elif self.movement_mode == "Patrol":
+            if self is not self.world.soldiers[0] and self.target is not self.world.soldiers[0].target:
+                self.target = self.world.soldiers[0].target
+                self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
+            else:
+                self.follow_graph_path(delta)
 
     # def update_shooter(self, delta):
     #     self.see_target = False
@@ -737,6 +747,8 @@ class Agent(object):
             return self.avoid(hunter_pos)
 
     def follow_graph_path(self, delta):
+        self.following_enemy = False
+
         if self.path == None or len(self.path.path) == 0 or self.current_node_pos is None:
             self.get_wander_path()
             print("overriding none path with wander path")
@@ -751,10 +763,14 @@ class Agent(object):
         if self.distance(self.current_node_pos) < self.radius * 0.5:
             if len(path) > 1:
                 path.remove(path[0])
+                self.last_node_box = self.current_node_box
+                self.last_new_node_time = datetime.now()
                 self.current_node_box = self.world.boxes[path[0]]
                 self.current_node_pos = self.current_node_box.get_vc("agent.follow_graph_path()").copy() 
             else:
                 self.path = None
+                self.last_node_box = None
+                self.last_new_node_time = datetime.now()
                 self.current_node_box = None
                 self.current_node_pos = None
 
@@ -773,6 +789,7 @@ class Agent(object):
                 return self.seek(self.path.current_pt())
 
     def follow_target_enemy(self, delta):
+        self.following_enemy = True
         to_target_enemy = (self.target_enemy.pos - self.pos).normalise() * self.max_speed * delta
 
         self.pos.x = self.pos.x + (to_target_enemy.x * self.world.scale_vector.x)
@@ -1108,6 +1125,24 @@ class Agent(object):
 
         return None
 
+    def get_trooper_path(self):
+        print("trooper")
+        l = self.world.soldiers[0]
+        sc = self.world.scale_vector
+        target = self.world.soldiers[0].target # self.world.get_box_by_pos(int(randrange(int(l.pos.x - l.radius * 1.5), int(l.pos.x + l.radius * 1.5))), int(randrange(int(l.pos.y - l.radius * 1.5), int(l.pos.y + l.radius * 1.5))))
+
+        # while target.kind == "X" or target == self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y)):
+        #     target = self.world.get_box_by_pos(int(randrange(int(l.pos.x - l.radius * 1.5), int(l.pos.x + l.radius * 1.5))), int(randrange(int(l.pos.y - l.radius * 1.5), int(l.pos.y + l.radius * 1.5))))
+    
+        if self.target is not None and self.target in self.world.targets:
+            self.world.targets.remove(self.target)
+    
+        self.target = target
+        self.world.targets.append(target)
+
+        self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
+        print("Agent path: " + self.path.report(verbose=3))
+
     def get_wander_path(self):
         target = self.world.boxes[randrange(0, len(self.world.boxes))]
 
@@ -1231,8 +1266,18 @@ class Agent(object):
         self.path = cls(self.world.graph, self.box.idx, self.target.idx, limit)
 
         if len(self.path.path) > 0:
-            self.current_node_box = self.world.boxes[self.path.path[0]]
-            self.current_node_pos = self.current_node_box.get_vc("agent.plan_path()").copy()
+            path = self.path.path
+            boxes = self.world.boxes
+            self.last_node_box = self.current_node_box
+            self.current_node_box = self.world.boxes[path[0]]
+            self.current_node_pos = self.current_node_box.get_vc("agent.plan_path() 1").copy()
+
+            if len(self.path.path) > 1 and self.distance(boxes[path[1]].get_vc("agent.plan_path() 2").copy()) < (boxes[path[0]].get_vc("agent.plan_path() 3").copy() - boxes[path[1]].get_vc("agent.plan_path() 4").copy()).length():
+                path.remove(path[0])
+                self.last_node_box = self.current_node_box
+                self.last_new_node_time = datetime.now()
+                self.current_node_box = boxes[path[0]]
+                self.current_node_pos = self.current_node_box.get_vc("agent.follow_graph_path()").copy() 
 
     def position_in_random_box(self):
         self.box = self.world.boxes[randrange(0, len(self.world.boxes))]

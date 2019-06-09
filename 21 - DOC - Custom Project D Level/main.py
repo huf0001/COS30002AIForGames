@@ -35,8 +35,8 @@ class BoxWorldWindow(pyglet.window.Window):
 
     def __init__(self, filename, **kwargs):
         kwargs.update({
-            'width': 500,
-            'height': 500,
+            'width': 900,
+            'height': 900,
             'vsync':True,
             'resizable':True,
         })
@@ -58,8 +58,9 @@ class BoxWorldWindow(pyglet.window.Window):
         self.world = BoxWorld.FromFile(filename, self.get_size())
         self.world.window = self
         self.world.reset_navgraph()
+        self.world.set_waypoints()
         self.world.set_agents()
-        self.world.set_targets(4)
+        # self.world.set_targets(9)
 
         # prep the fps display and some labels
         self.fps_display = clock.ClockDisplay() # None 
@@ -110,7 +111,8 @@ class BoxWorldWindow(pyglet.window.Window):
                     if box.kind != start_kind:
                         print("box change")
                         if start_kind == "X":
-                            self.world.walls.remove(box)
+                            if box in self.world.walls:
+                                self.world.walls.remove(box)
                         elif box.kind == "X":
                             self.world.walls.append(box)
 
@@ -157,11 +159,6 @@ class BoxWorldWindow(pyglet.window.Window):
                 cfg['PATH_ON'] = not cfg['PATH_ON']
             elif symbol == key.P:
                 self.world.paused = not self.world.paused
-            elif symbol == key.R:
-                for agent in self.world.agents:
-                    agent.position_in_random_box()
-                self.world.set_targets(len(self.world.targets))
-                self.plan_path()
             elif symbol == key.T:
                 cfg['TREE_ON'] = not cfg['TREE_ON']
 
@@ -218,7 +215,7 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         filename = sys.argv[1]
     else:
-        filename = "map2.txt"
+        filename = "map3.txt"
     window = BoxWorldWindow(filename)
     #pyglet.app.run()
 

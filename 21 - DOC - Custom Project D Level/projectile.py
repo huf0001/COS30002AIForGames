@@ -53,30 +53,43 @@ class Projectile(object):
 
         if not self.exploding:
             ''' update projectile position '''
-            self.pos += self.vel * delta
+            i = 0
 
-            if self.pos.x < 0 or self.pos.x > self.world.cx or self.pos.y < 0 or self.pos.y > self.world.cy:
-                self.world.destroy_projectile(self)
+            if self.vel is None:
+                print("projectile vel is none")
+            if delta is None:
+                print("projectile passed a none value for delta")
 
-            collided = self.collided()
+            while i < 4:
+                print("projectile i is " + str(i))
+                self.pos += self.vel * delta * 0.2
 
-            if len(collided) > 0:
-                if self.weapon.name == 'Rocket' or self.weapon.name == 'Hand Grenade':
-                    for collision in collided:
-                        if collision is not self.target and collision in self.world.agents:
-                            collision.hit_time = datetime.now()
-                            collision.health -= self.damage
-
-                    self.target = None
-                    self.exploding = True
-                    self.explosion_time = datetime.now()
-                else:
-                    for collision in collided:
-                        if collision in self.world.agents:
-                            collision.hit_time = datetime.now()
-                            collision.health -= self.damage
-                    
+                if self.pos.x < 0 or self.pos.x > self.world.cx or self.pos.y < 0 or self.pos.y > self.world.cy:
+                    i = 5
                     self.world.destroy_projectile(self)
+
+                collided = self.collided()
+
+                if len(collided) > 0:
+                    i = 5
+
+                    if self.weapon.name == 'Rocket' or self.weapon.name == 'Hand Grenade':
+                        for collision in collided:
+                            if collision is not self.target and collision in self.world.agents:
+                                collision.hit_time = datetime.now()
+                                collision.health -= self.damage
+
+                        self.target = None
+                        self.exploding = True
+                        self.explosion_time = datetime.now()
+                    else:
+                        for collision in collided:
+                            if collision in self.world.agents:
+                                collision.hit_time = datetime.now()
+                                collision.health -= self.damage
+                        
+                        self.world.destroy_projectile(self)
+                i += 1
         else:
             self.radius += 0.02 * self.scale_scalar * self.world.scale_scalar * self.explosion_multiplier
             

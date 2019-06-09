@@ -180,7 +180,12 @@ class Box(object):
         else:
             egi.white_pen()
             egi.closed_shape(self._pts, filled=True)
+
             egi.set_pen_color(self.color)
+            egi.set_stroke(5)
+            egi.circle(self._vc, self.radius)
+            
+            egi.set_stroke(1)
 
         # draw box border
         if cfg['BOXLINES_ON']:
@@ -220,6 +225,9 @@ class BoxWorld(object):
     '''A world made up of boxes. '''
 
     def __init__(self, nx, ny, cx, cy):
+        self.waypoints = []
+        self.soldiers = []
+        self.fugitives = []
         self.agents = []
         self.weapons = []
         self.projectiles = []
@@ -285,13 +293,6 @@ class BoxWorld(object):
     def draw(self):
         for box in self.boxes:
             box.draw()
-
-        for box in self.boxes:
-            if box.kind == "X":
-                egi.set_pen_color(box.color)
-                egi.set_stroke(5)
-                egi.circle(box._vc, box.radius, filled=True)
-                egi.set_stroke(1)
 
         if cfg['EDGES_ON']:
             egi.set_pen_color(name='LIGHT_BLUE')
@@ -451,11 +452,28 @@ class BoxWorld(object):
             if (j+1) >= 0 and (j%nx +1) < nx:
                 self._add_edge(i, j+1, 1.4142)
 
+    def set_waypoints(self):
+        i = 0
+
+        while i < len(self.waypoints):
+            self.waypoints[i] = self.boxes[self.waypoints[i]]
+            i += 1
+
     def set_agents(self):
-        self.agents.append(Agent(world=self, agent_type="soldier"))
-        self.agents.append(Agent(world=self))
-        self.agents.append(Agent(world=self))
-        self.agents.append(Agent(world=self))
+        self.soldiers.append(Agent(world=self, agent_type="soldier", box=62))
+        self.soldiers.append(Agent(world=self, agent_type="soldier", box=60))
+        self.soldiers.append(Agent(world=self, agent_type="soldier", box=2))
+        self.soldiers.append(Agent(world=self, agent_type="soldier", box=0))
+
+        # self.fugitives.append(Agent(world=self))
+        # self.fugitives.append(Agent(world=self))
+        # self.fugitives.append(Agent(world=self))
+
+        for soldier in self.soldiers:
+            self.agents.append(soldier)
+
+        # for fugitive in self.fugitives:
+        #     self.agents.append(fugitive)
         
     def set_weapons(self):
         # add weapons
@@ -464,7 +482,7 @@ class BoxWorld(object):
             name = 'Rifle', 
             cooldown = 1.5,                 # max rpm of 0.5 sec / round
             effective_range = 2300,    # effective range 2300 m
-            speed = 1000,
+            speed = 200,
             damage = 50, 
             damage_factor = 1,
             reload_time = 2.6, 
@@ -477,7 +495,7 @@ class BoxWorld(object):
             name = 'Rocket', 
             cooldown = 1.5,                 # max rpm of 0.6 sec / round 
             effective_range = 160,      # estimated effective range 160 m
-            speed = 250,
+            speed = 100,
             damage = 6,                     # explosive; does damage over time
             damage_factor = 20,
             reload_time = 3, 
@@ -490,39 +508,39 @@ class BoxWorld(object):
             name = 'Hand Gun', 
             cooldown = 0.286,               # max rpm
             effective_range = 122.7,    # effective range 122.7 m
-            speed = 1000,
+            speed = 200,
             damage = 20, 
             damage_factor = 1,
             reload_time = 1.8, 
             magazine_size = 12, 
             magazines = 1,#10, 
-            accuracy_modifier = 50,
+            accuracy_modifier = 5,
             stamina_drain=2))
         self.weapons.append(Weapon(
             world = self, 
             name = 'Hand Grenade', 
             cooldown = 2,                   # estimated max rpm of 2 sec / round 
             effective_range = 75,       # estimated effective range 75 m
-            speed = 250,
+            speed = 100,
             damage = 4,                     # explosive; does damage over time
             damage_factor = 20,
             reload_time = 2, 
             magazine_size = 8, 
             magazines = 1,#2, 
-            accuracy_modifier = 50,
+            accuracy_modifier = 5,
             stamina_drain=1))
         self.weapons.append(Weapon(
             world = self, 
             name = 'Shotgun', 
             cooldown = 1,                   # max rpm of 1 sec / round
             effective_range = 6 * 5,       # estimated effective range 5 m 
-            speed = 1000,
+            speed = 200,
             damage = 20,                    # multiple pellets; damage is spread out amongst them
             damage_factor = 3,
             reload_time = 6, 
             magazine_size = 12, 
             magazines = 1,#5, 
-            accuracy_modifier = 50,
+            accuracy_modifier = 5,
             stamina_drain=3))
 
     def change_weapons(self, soldier):
@@ -679,12 +697,19 @@ class BoxWorld(object):
         # Create a new BoxWorld to store all the new boxes in...
         cx, cy = pixels
         world = BoxWorld(nx, ny, cx, cy)
+
         # Get and set the Start and Target tiles
-        s_idx, t_idx = [int(bit) for bit in lines.pop(0).split()]
+        # s_idx, t_idx = [int(bit) for bit in lines.pop(0).split()]
         # world.set_start(s_idx)
         # world.set_target(t_idx)
+
+        # Get and set the waypoints
+        wps = lines.pop(0).split()
+        for wp in wps:
+            world.waypoints.append(int(wp.strip()))
+
         # Ready to process each line
-        assert len(lines) == ny, "Number of rows doesn't match data."
+        assert len(lines) == ny, "Number of rows doesn't match data. Rows: " + str(len(lines)) + ", Rows in data: " + str(ny)
         # read each line
         idx = 0
         for line in reversed(lines): # in reverse order
