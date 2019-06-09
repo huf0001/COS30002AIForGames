@@ -58,8 +58,7 @@ class BoxWorldWindow(pyglet.window.Window):
         self.world = BoxWorld.FromFile(filename, self.get_size())
         self.world.window = self
         self.world.reset_navgraph()
-        self.world.set_waypoints()
-        self.world.set_agents()
+
         # self.world.set_targets(9)
 
         # prep the fps display and some labels
@@ -77,6 +76,9 @@ class BoxWorldWindow(pyglet.window.Window):
 
         # search limit
         self.limit = 0 # unlimited.
+
+        self.world.set_waypoints()
+        self.world.set_agents()
 
     def _update_label(self, key=None, text='---'):
         if key == 'mouse' or key is None:

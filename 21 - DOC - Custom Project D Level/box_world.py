@@ -184,7 +184,7 @@ class Box(object):
             egi.set_pen_color(self.color)
             egi.set_stroke(5)
             egi.circle(self._vc, self.radius)
-            
+
             egi.set_stroke(1)
 
         # draw box border
@@ -474,6 +474,9 @@ class BoxWorld(object):
 
         # for fugitive in self.fugitives:
         #     self.agents.append(fugitive)
+
+        self.soldiers[0].target = self.waypoints[0]
+        self.soldiers[0].plan_path(search_modes[self.window.search_mode], self.window.limit)
         
     def set_weapons(self):
         # add weapons
