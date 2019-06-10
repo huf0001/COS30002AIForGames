@@ -26,3 +26,8 @@ class Weapon (object):
         while i < 200:
             self.projectile_pool.append(Projectile(world=self.world, weapon=self))
             i += 1
+
+    def copy(self):
+        copy = Weapon(world=self.world, owner=self.owner, name=self.name, cooldown=self.cooldown, effective_range=self.effective_range, speed=self.speed, damage=self.damage, damage_factor=self.damage_factor, reload_time=self.reload_time, magazine_size=self.magazine_size, magazines=self.magazines_left, accuracy_modifier=self.accuracy_modifier, stamina_drain=self.stamina_drain, explosive=self.explosive, explosion_radius = self.explosion_radius)
+        copy.rounds_left_in_magazine = self.rounds_left_in_magazine
+        return copy

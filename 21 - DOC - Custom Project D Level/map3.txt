@@ -1,7 +1,12 @@
 # map width x height
 30 30
-# patrol waypoint indexes
-182 811 538 188 358
+# patrol waypoint gate indexes
+5
+210 211 212
+780 781 782
+567 568 569
+130 160 190
+357 358 359
 # map layout; . is blank, ~ is water, m is mud, X is wall
 . . . . ~ . . . ~ . . ~ . . . ~ . . . X . . . . . . . . . .
 . ~ . . . . . . . . . . ~ . . . . ~ . X . . . . . . . . . .
@@ -33,3 +38,34 @@ X X . . . . X X ~ ~ ~ ~ ~ ~ ~ ~ ~ X . . . . . . . . . . . .
 m . . . . . . . . ~ ~ m ~ ~ m ~ ~ m ~ ~ . . . . . . . . . .
 . . . . X . . . ~ ~ m ~ ~ m ~ ~ m ~ ~ . . . . . . . . . . .
 m . m . X . . ~ ~ m ~ ~ m ~ ~ m ~ ~ . . . . . . . . . . . .
+# patrol direction map - abandoned
+# >> >> >> >> >> >> >> >> >> >> >> >> >> >> >> >v >v >v vv XX >> >> >> >> >> >> >v >v >v vv
+# ^> ^> ^> >> >> >> >> >> >> >> >> >> >> >> >> >v >v >v vv XX ^> ^> ^> >> >> >> >v >v >v vv
+# ^> ^> ^> >> >> >> >> >> >> >> >> >> >> >> >> >v >v >v vv XX ^> ^> ^> >> >> >> >v >v >v vv
+# ^> ^> ^> XX XX XX XX XX XX XX XX XX XX XX XX XX vv vv vv XX ^> ^> ^> XX XX XX XX vv vv vv
+# ^^ ^< ^< ^< << << << << << << << << << << << XX vv vv vv XX ^^ ^< ^< ^< << << XX vv vv vv
+# ^^ ^< ^< ^< << << << << << << << << <^ <^ <^ XX vv vv vv XX ^^ ^< ^< ^< <^ <^ XX vv vv vv
+# ^^ ^< ^< ^< << << << << << << << << <^ <^ <^ XX vv vv vv XX ^^ ^< ^< <^ <^ <^ XX vv vv vv
+# XX XX XX XX XX XX XX XX XX XX XX XX <^ <^ <^ XX v> v> v> XX XX XX XX <^ <^ <^ XX vv vv vv
+# >> >> >> >> >> >> >> >> >> >> >> >^ >^ >^ ^^ XX v> v> v> >> >> >> >^ >^ >^ ^^ XX vv vv vv
+# ^> ^> ^> ^> ^> >> >> >> >> >> >> >^ >^ >^ ^^ XX v> v> v> >> >> >> >^ >^ >^ ^^ XX vv vv vv
+# ^> ^> ^> ^> >> >> >> >> >> >> >> >^ >^ >^ ^^ XX >> >> >> >> >> >> >^ >^ >^ ^^ XX vv vv vv
+# ^> ^> ^> XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX <v <v <v
+# ^^ ^^ ^^ XX vv v< v< v< << << << << << << << << << << << << << << << << << << << <v <v <v 
+# ^^ ^^ ^^ XX vv v< v< v< << << << << << << << << << << << << << << << << << << << << << <<
+# ^^ ^^ ^^ XX vv vv vv XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX
+# ^^ ^^ ^^ XX vv vv vv XX XX XX XX XX >> >> >> >> >> >> >> >> >> >> >> >> >> >> >v >v >v vv
+# ^^ ^^ ^^ XX vv vv vv XX XX XX XX ^> ^> ^> >> >> >> >> >> >> >> >> >> >> >> >> >v >v >v vv
+# ^^ ^^ ^^ XX vv vv vv XX XX XX ^> ^> ^> ^> >> >> >> >> >> >> >> >> >> >> >> >> >v >v >v vv
+# ^^ ^^ ^^ XX vv vv vv XX XX XX ^> ^> ^> ^> XX XX XX XX XX XX XX XX XX XX XX XX XX <v <v <v
+# ^^ ^^ ^^ XX v> v> v> XX XX XX ^^ ^< ^< ^< ^< XX XX XX vv v< v< v< << << << << << <v <v <v
+# ^^ ^^ ^^ XX v> v> v> v> XX XX XX ^< ^< ^< ^< ^< XX XX vv v< v< v< << << << << << <v <v <v
+# ^^ ^^ ^^ XX v> v> v> v> v> XX XX XX <^ <^ <^ <^ <^ XX vv v< v< v< << << << << << << << <<
+# ^^ ^^ ^^ XX XX v> v> v> v> v> XX XX XX <^ <^ <^ <^ XX v> v> v> XX XX XX XX XX XX XX XX XX
+# ^^ ^< ^< ^< XX XX v> v> v> v> >> >> >^ >^ >^ >^ ^^ XX v> v> v> >> >> >> >> >> >v >v vv vv
+# ^^ ^< ^< ^< ^< XX XX v> v> v> >> >> >^ >^ >^ >^ ^^ XX v> v> v> >> >> >> >> >> >v >v vv vv
+# XX XX ^< ^< ^< ^< XX XX >> >> >> >> >^ >^ >^ >^ ^^ XX >> >> >> >> >> >> >> >> >v >v >v vv
+# >> >^ ^^ ^< ^< ^< ^< XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX XX <v <v <v
+# >^ >^ ^^ ^^ ^< ^< ^< ^< << << << << << << << << << << << << << << << << << << << <v <v <v
+# >^ >^ ^^ ^^ XX ^< ^< ^< << << << << << << << << << << << << << << << << << << << << <v <v
+# 1>^ >^ ^^ ^^ XX ^^ ^< ^< << << << << << << << << << << << << << << << << << << << << << <<

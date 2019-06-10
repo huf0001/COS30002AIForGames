@@ -30,6 +30,19 @@ class BoxWorldWindow(pyglet.window.Window):
     }
     mouse_mode = 'wall'
 
+    waypoint_indexes = {
+        key._0: 0,
+        key._1: 1,
+        key._2: 2,
+        key._3: 3,
+        key._4: 4,
+        key._5: 5,
+        key._6: 6,
+        key._7: 7,
+        key._8: 8,
+        key._9: 9
+    }
+
     # search mode cycles through the search algorithm used by box_world
     search_mode = 0
 
@@ -77,6 +90,7 @@ class BoxWorldWindow(pyglet.window.Window):
         # search limit
         self.limit = 0 # unlimited.
 
+        self.world.walls = self.world.find_walls(self.world.boxes)
         self.world.set_waypoints()
         self.world.set_agents()
 
@@ -102,21 +116,24 @@ class BoxWorldWindow(pyglet.window.Window):
             if button == 1: # left
                 box = self.world.get_box_by_pos(x,y)
                 if box:
-                    for agent in self.world.agents:
-                        if box == self.world.get_box_by_pos(int(agent.pos.x), int(agent.pos.y)):
-                            print("Illegal change. That box has agents in it. Try again when they've all moved to new boxes.")
-                            return
+                    if self.world.editing_waypoints:
+                        self.world.edit_waypoint_node(box)
+                    else:
+                        for agent in self.world.agents:
+                            if box == self.world.get_box_by_pos(int(agent.pos.x), int(agent.pos.y)):
+                                print("Illegal change. That box has agents in it. Try again when they've all moved to new boxes.")
+                                return
 
-                    start_kind = box.kind
-                    box.set_kind(self.mouse_mode)
+                        start_kind = box.kind
+                        box.set_kind(self.mouse_mode)
 
-                    if box.kind != start_kind:
-                        print("box change")
-                        if start_kind == "X":
-                            if box in self.world.walls:
-                                self.world.walls.remove(box)
-                        elif box.kind == "X":
-                            self.world.walls.append(box)
+                        if box.kind != start_kind:
+                            print("box change")
+                            if start_kind == "X":
+                                if box in self.world.walls:
+                                    self.world.walls.remove(box)
+                            elif box.kind == "X":
+                                self.world.walls.append(box)
 
                     self.world.reset_navgraph()
                     self.plan_path()
@@ -126,11 +143,11 @@ class BoxWorldWindow(pyglet.window.Window):
         @self.event
         def on_key_press(symbol, modifiers):
             # mode change?
-            if symbol in self.mouse_modes:
+            if not self.world.editing_waypoints and symbol in self.mouse_modes:
                 self.mouse_mode = self.mouse_modes[symbol]
                 self._update_label('mouse')
-
-                #print 'mouse mode ', self.mouse_mode
+            elif self.world.editing_waypoints and symbol in self.waypoint_indexes:
+                self.world.active_waypoint = self.waypoint_indexes[symbol]
             # Change search mode? (Algorithm)
             elif symbol == key.M:
                 self.search_mode += 1
@@ -145,8 +162,8 @@ class BoxWorldWindow(pyglet.window.Window):
                 self.plan_path()
                 self._update_label('search')
             # Plan a path using the current search mode?
-            # elif symbol == key.SPACE:
-            #     self.plan_path()
+            elif symbol == key.SPACE:
+                self.world.editing_waypoints = not self.world.editing_waypoints
             elif symbol == key.E:
                 cfg['EDGES_ON'] = not cfg['EDGES_ON']
             elif symbol == key.L:

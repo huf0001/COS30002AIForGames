@@ -158,10 +158,10 @@ class Agent(object):
             self.health = self.start_health
             self.hit_time = None
 
-            for agent in self.world.agents:
-                if agent.agent_type is not self.agent_type and agent.target_enemy == self:
-                    agent.target_enemy = None
-                    agent.get_new_path()
+            # for agent in self.world.agents:
+            #     if agent.agent_type is not self.agent_type and agent.target_enemy == self:
+            #         agent.target_enemy = None
+            #         agent.get_new_path()
 
         if self.last_new_node_time is not None and not self.following_enemy and (datetime.now() - self.last_new_node_time).total_seconds() > 3:
             self.last_new_node_time = datetime.now()
@@ -183,19 +183,12 @@ class Agent(object):
             self.update_fugitive(delta)
 
         self.update_heading()
-        # box = self.box
         self.box = self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y))
-
-        # if box is not self.box:
-        #     self.last_new_box_time = datetime.now()
 
     def update_soldier(self, delta):
         self.awareness_pos = Vector2D(self.awareness_radius * 0.625, 0)
         self.awareness_pos = self.world.transform_point(self.awareness_pos, self.pos, self.heading, self.side)
         self.look(self.world.agents)
-
-        # if self.path == None:
-        #     self.get_wander_path()
 
         if self.see_target:
             self.movement_mode = "Attack"
@@ -207,13 +200,12 @@ class Agent(object):
                 self.target_enemy = None
 
                 for agent in self.world.agents:
-                    if agent is not self and agent.distance(self.pos) < self.awareness_radius + agent.radius and (self.target_enemy == None or self.distance(self.target_enemy.pos) > self.distance(agent.pos)):
+                    if agent is not self and agent.distance(self.awareness_pos) < self.awareness_radius + agent.radius and (self.target_enemy == None or self.distance(self.target_enemy.pos) > self.distance(agent.pos)):
                         self.target_enemy = agent
 
             # if self.path is not None and len(self.path.path) > 0 and self.target_enemy is not None and self.target_enemy.box is not self.target:
             if self.target_enemy is not None and self.target_enemy.box is not self.target:
                 self.get_new_path()
-                # print("target moved to box " + str(self.target.idx))
 
             if self.choose_weapon():
                 if self.see_target:
@@ -373,7 +365,7 @@ class Agent(object):
 
     def update_fugitive(self, delta):
         if self.path == None:
-            self.get_wander_path()
+            self.get_new_path()
 
         self.follow_graph_path(delta)
 
@@ -747,8 +739,8 @@ class Agent(object):
     def follow_graph_path(self, delta):
         self.following_enemy = False
 
-        if self.path == None or len(self.path.path) == 0 or self.current_node_pos is None:
-            self.path = None
+        if self.path is None or len(self.path.path) is 0 or self.current_node_pos is None or self.current_node_box is None:
+            print("follow graph path called get new path")
             self.get_new_path()
 
         path = self.path.path
@@ -764,7 +756,7 @@ class Agent(object):
                 self.last_node_box = self.current_node_box
                 self.last_new_node_time = datetime.now()
                 self.current_node_box = self.world.boxes[path[0]]
-                self.current_node_pos = self.current_node_box.get_vc("agent.follow_graph_path()").copy() 
+                self.current_node_pos = self.current_node_box.get_vc("agent.follow_graph_path() 2").copy() 
             else:
                 self.get_new_path()
 
@@ -1123,20 +1115,74 @@ class Agent(object):
         if self.target in self.world.targets:
             self.world.targets.remove(self.target)
 
-        self.path = None
-        self.last_node_box = None
+        # self.path = None
+        # self.last_node_box = None
         self.last_new_node_time = datetime.now()
-        self.current_node_box = None
-        self.current_node_pos = None
+        # self.current_node_box = None
+        # self.current_node_pos = None
 
         if self.agent_type == "soldier":
             if self.movement_mode == "Patrol":
                 if self == self.world.soldiers[0]:
                     print("commander")
-                    wp = self.world.waypoints[0]
-                    self.world.waypoints.remove(wp)
-                    self.world.waypoints.append(wp)
-                    self.target = self.world.waypoints[0]
+
+                    # set variables for finding closest waypoint
+                    # waypoint = None
+                    wa = None
+                    #path = None
+                    path_length = 9999999999
+                    t_path = None
+                    t_path_length = 999999999
+                    i = 0
+
+                    # find the closest waypoint
+                    while i < len(self.world.waypoints):
+                        waypoint = self.world.waypoints[i]
+
+                        if waypoint is not self.box:
+                            self.target = self.world.waypoints[i]
+                            self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
+                            t_path = self.path
+                            t_path_length = self.get_path_length(t_path.path)
+
+                            if wa or t_path_length < path_length: #swapped wa with waypoint
+                                # waypoint = self.target
+                                wa = i
+                                #path = t_path
+                                path_length = t_path_length
+
+                            i += 1
+
+                    # get index of next waypoint after closest waypoint
+                    wb = wa + 1
+
+                    if wb >= len(self.world.waypoints):
+                        wb = 0
+
+                    # get distance from closest waypoint to next waypoint after it
+                    pos = self.pos
+                    self.pos = self.world.waypoints[wa].get_vc("agent.get_new_path, soldier patrolling, 1")
+                    self.target = self.world.waypoints[wb]
+                    self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
+                    path_wa_to_wb = self.path
+                    path_wa_to_wb_length = self.get_path_length(path_wa_to_wb.path)
+
+                    # get distance from self to next waypoint after closest waypoint
+                    self.pos = pos
+                    self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
+                    path_self_to_wb = self.path
+                    path_self_to_wb_length = self.get_path_length(path_self_to_wb.path)
+
+                    # set optimal waypoint as target
+                    if path_wa_to_wb_length < path_self_to_wb_length:
+                        self.target = self.world.waypoints[wa]
+                    else:
+                        self.target = self.world.waypoints[wb]
+
+                    # wp = self.world.waypoints[0]
+                    # self.world.waypoints.remove(wp)
+                    # self.world.waypoints.append(wp)
+                    # self.target = self.world.waypoints[0]
                 else:
                     print("trooper")
                     # l = self.world.soldiers[0]
@@ -1160,6 +1206,22 @@ class Agent(object):
 
         self.world.targets.append(self.target)
         self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
+
+    def get_path_length(self, path):
+        total_dist = 0
+        boxes = self.world.boxes
+
+        if path is not None:
+            # current node to first node in path
+            dist = self.distance(boxes[path[0]].get_vc("agent.get_path_length(), self to first node in path, path node"))
+            total_dist += dist
+
+            # first node in path to last node in path
+            for i in range(1, len(path)):
+                dist = (boxes[path[i]].get_vc("agent.get_path_length(), path nodes, " + str(i)) - boxes[path[i-1]].get_vc("agent.get_path_length(), path nodes, " + str(i-1))).length()
+                total_dist += dist
+
+        return total_dist
 
     # def get_trooper_path(self):
     #     print("trooper")
@@ -1279,7 +1341,7 @@ class Agent(object):
         self.see_target = False
 
         for agent in agents:
-            if agent.agent_type is not self.agent_type and agent.distance(self.awareness_pos) < self.awareness_radius:
+            if agent.agent_type is not self.agent_type and agent.distance(self.awareness_pos) < self.awareness_radius + agent.radius:
                 self.see_target = True
                 return
 
