@@ -134,6 +134,7 @@ class Box(object):
         # position using coordinates
         self.reposition(coords)
         self.last_accessor = ""
+        self.waypoint = None
 
     def get_vc(self, accessor):
         self.last_accessor = accessor
@@ -269,7 +270,9 @@ class BoxWorld(object):
         self.window = None
         self.cfg = cfg
         self.editing_waypoints = False
-        self.active_waypoint = 0
+        self.active_waypoint = 0 # currently being edited
+        self.current_waypoint = 0 # the next waypoint in the patrol of the soldier agents
+        self.current_waypoint = 9 # the previous waypoint in the patrol of the soldier agents
 
         i = 0
 
@@ -495,45 +498,78 @@ class BoxWorld(object):
 
             while j < len(self.waypoints[i].nodes):
                 self.waypoints[i].nodes[j] = self.boxes[self.waypoints[i].nodes[j]]
+                self.waypoints[i].nodes[j].waypoint = i
                 j += 1
 
             j = 0                
             i += 1
 
     def edit_waypoint_node(self, node):
-        waypoint = self.waypoints[self.active_waypoint]
+        active_waypoint = self.waypoints[self.active_waypoint]
 
-        if node in waypoint.nodes:
-            waypoint.nodes.remove(node)
-            return
+        if node.waypoint == None:
+            active_waypoint.nodes.append(node)
+            node.waypoint = active_waypoint.index
+        elif node.waypoint == self.active_waypoint:
+            active_waypoint.nodes.remove(node)
+            node.waypoint = None
+        else:
+            print("Cannot have a box as part of two waypoints.")
 
-        for w in self.waypoints:
-            if w is not waypoint and node in w.nodes:
-                print("Cannot have a box as part of two waypoints")
-                return
+    def update_waypoint(self, trigger):
+        if trigger == self.current_waypoint:
+            self.last_waypoint = self.current_waypoint
+            self.current_waypoint += 1
 
-        waypoint.nodes.append(node)
+            if self.current_waypoint >= len(self.waypoints):
+                self.current_waypoint = 0
+
+            while len(self.waypoints[self.current_waypoint].nodes) == 0:
+                self.current_waypoint += 1
+
+                if self.current_waypoint >= len(self.waypoints):
+                    self.current_waypoint = 0
+            print("Progressed Waypoint. Last Waypoint: " + str(self.last_waypoint) + ", Current Waypoint: " + str(self.current_waypoint) + ".")
+        elif trigger == self.last_waypoint:
+            self.current_waypoint = self.last_waypoint
+            self.last_waypoint -= 1
+
+            if self.last_waypoint < 0:
+                self.last_waypoint = len(self.waypoints) - 1
+
+            while len(self.waypoints[self.last_waypoint].nodes) == 0:
+                self.last_waypoint -= 1
+
+                if self.last_waypoint < 0:
+                    self.last_waypoint = len(self.waypoints) - 1
+
+            print("Regressed Waypoint. Current Waypoint: " + str(self.current_waypoint) + ", Last Waypoint: " + str(self.last_waypoint) + ".")
+        else:
+            print("Error: soldier leader triggered a waypoint that it should not have been able to trigger.")
+
+    def get_current_waypoint_node(self):
+        return self.waypoints[self.current_waypoint].nodes[0]
 
     def set_agents(self):
-        # self.soldiers.append(Agent(world=self, agent_type="soldier", box=62))
+        self.soldiers.append(Agent(world=self, agent_type="soldier", box=62))
         # self.soldiers.append(Agent(world=self, agent_type="soldier", box=60))
         # self.soldiers.append(Agent(world=self, agent_type="soldier", box=2))
         # self.soldiers.append(Agent(world=self, agent_type="soldier", box=0))
 
-        # self.fugitives.append(Agent(world=self))
-        # self.fugitives.append(Agent(world=self))
-        # self.fugitives.append(Agent(world=self))
-        # self.fugitives.append(Agent(world=self))
+        self.fugitives.append(Agent(world=self))
+        self.fugitives.append(Agent(world=self))
+        self.fugitives.append(Agent(world=self))
+        self.fugitives.append(Agent(world=self))
 
-        # for soldier in self.soldiers:
-        #     self.agents.append(soldier)
+        for soldier in self.soldiers:
+            self.agents.append(soldier)
 
-        # for fugitive in self.fugitives:
-        #     self.agents.append(fugitive)
+        for fugitive in self.fugitives:
+            self.agents.append(fugitive)
 
-        # self.soldiers[0].target = self.waypoints[0]
-        # self.soldiers[0].plan_path(search_modes[self.window.search_mode], self.window.limit)
-        pass
+        self.soldiers[0].target = self.waypoints[0].nodes[0]
+        self.soldiers[0].plan_path(search_modes[self.window.search_mode], self.window.limit)
+        # pass
         
     def set_weapons(self):
         # add weapons
@@ -765,6 +801,8 @@ class BoxWorld(object):
         # world.set_target(t_idx)
 
         # Get and set the waypoints
+        world.current_waypoint, world.last_waypoint = [int(bit) for bit in lines.pop(0).split()]
+
         n = int(lines.pop(0))
         i = 0
         while i < n:

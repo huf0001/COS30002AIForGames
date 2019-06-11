@@ -182,9 +182,6 @@ class Agent(object):
         elif self.agent_type == "fugitive":
             self.update_fugitive(delta)
 
-        self.update_heading()
-        self.box = self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y))
-
     def update_soldier(self, delta):
         self.awareness_pos = Vector2D(self.awareness_radius * 0.625, 0)
         self.awareness_pos = self.world.transform_point(self.awareness_pos, self.pos, self.heading, self.side)
@@ -264,6 +261,14 @@ class Agent(object):
                 self.get_new_path()
             
             self.follow_graph_path(delta)
+
+        self.update_heading()
+        self.box = self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y))
+
+        if self == self.world.soldiers[0] and self.box.waypoint is not None and self.movement_mode is not "Patrol":
+            self.world.update_waypoint(self.box.waypoint)
+
+
 
     # def update_shooter(self, delta):
     #     self.see_target = False
@@ -368,6 +373,8 @@ class Agent(object):
             self.get_new_path()
 
         self.follow_graph_path(delta)
+        self.update_heading()
+        self.box = self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y))
 
     def choose_weapon(self):
         if self.movement_mode == 'Exchange Weapons':
@@ -1125,64 +1132,65 @@ class Agent(object):
             if self.movement_mode == "Patrol":
                 if self == self.world.soldiers[0]:
                     print("commander")
-
-                    # set variables for finding closest waypoint
-                    # waypoint = None
-                    wa = None
-                    #path = None
-                    path_length = 9999999999
-                    t_path = None
-                    t_path_length = 999999999
-                    i = 0
-
-                    # find the closest waypoint
-                    while i < len(self.world.waypoints):
-                        waypoint = self.world.waypoints[i]
-
-                        if waypoint is not self.box:
-                            self.target = self.world.waypoints[i]
-                            self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
-                            t_path = self.path
-                            t_path_length = self.get_path_length(t_path.path)
-
-                            if wa or t_path_length < path_length: #swapped wa with waypoint
-                                # waypoint = self.target
-                                wa = i
-                                #path = t_path
-                                path_length = t_path_length
-
-                            i += 1
-
-                    # get index of next waypoint after closest waypoint
-                    wb = wa + 1
-
-                    if wb >= len(self.world.waypoints):
-                        wb = 0
-
-                    # get distance from closest waypoint to next waypoint after it
-                    pos = self.pos
-                    self.pos = self.world.waypoints[wa].get_vc("agent.get_new_path, soldier patrolling, 1")
-                    self.target = self.world.waypoints[wb]
-                    self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
-                    path_wa_to_wb = self.path
-                    path_wa_to_wb_length = self.get_path_length(path_wa_to_wb.path)
-
-                    # get distance from self to next waypoint after closest waypoint
-                    self.pos = pos
-                    self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
-                    path_self_to_wb = self.path
-                    path_self_to_wb_length = self.get_path_length(path_self_to_wb.path)
-
-                    # set optimal waypoint as target
-                    if path_wa_to_wb_length < path_self_to_wb_length:
-                        self.target = self.world.waypoints[wa]
-                    else:
-                        self.target = self.world.waypoints[wb]
-
-                    # wp = self.world.waypoints[0]
+                    if self.box.waypoint is not None:
+                        self.world.update_waypoint(self.box.waypoint)
+                    self.target = self.world.get_current_waypoint_node()
                     # self.world.waypoints.remove(wp)
                     # self.world.waypoints.append(wp)
-                    # self.target = self.world.waypoints[0]
+                    # self.target = self.world.waypoints[0].nodes[0]
+
+                    # # set variables for finding closest waypoint
+                    # # waypoint = None
+                    # wa = None
+                    # #path = None
+                    # path_length = 9999999999
+                    # t_path = None
+                    # t_path_length = 999999999
+                    # i = 0
+
+                    # # find the closest waypoint
+                    # while i < len(self.world.waypoints):
+                    #     waypoint = self.world.waypoints[i]
+
+                    #     if waypoint is not self.box:
+                    #         self.target = self.world.waypoints[i]
+                    #         self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
+                    #         t_path = self.path
+                    #         t_path_length = self.get_path_length(t_path.path)
+
+                    #         if wa or t_path_length < path_length: #swapped wa with waypoint
+                    #             # waypoint = self.target
+                    #             wa = i
+                    #             #path = t_path
+                    #             path_length = t_path_length
+
+                    #         i += 1
+
+                    # # get index of next waypoint after closest waypoint
+                    # wb = wa + 1
+
+                    # if wb >= len(self.world.waypoints):
+                    #     wb = 0
+
+                    # # get distance from closest waypoint to next waypoint after it
+                    # pos = self.pos
+                    # self.pos = self.world.waypoints[wa].get_vc("agent.get_new_path, soldier patrolling, 1")
+                    # self.target = self.world.waypoints[wb]
+                    # self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
+                    # path_wa_to_wb = self.path
+                    # path_wa_to_wb_length = self.get_path_length(path_wa_to_wb.path)
+
+                    # # get distance from self to next waypoint after closest waypoint
+                    # self.pos = pos
+                    # self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
+                    # path_self_to_wb = self.path
+                    # path_self_to_wb_length = self.get_path_length(path_self_to_wb.path)
+
+                    # # set optimal waypoint as target
+                    # if path_wa_to_wb_length < path_self_to_wb_length:
+                    #     self.target = self.world.waypoints[wa]
+                    # else:
+                    #     self.target = self.world.waypoints[wb]
                 else:
                     print("trooper")
                     # l = self.world.soldiers[0]

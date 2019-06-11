@@ -79,8 +79,9 @@ class BoxWorldWindow(pyglet.window.Window):
         clBlack = (0,0,0, 255)
         self.labels = {
             'mouse':  Label('', x=5, y=self.height-20, color=clBlack),
-            'search': Label('', x=120, y=self.height-20, color=clBlack),
-            'status': Label('', x=300, y=self.height-20, color=clBlack),
+            'search': Label('', x=105, y=self.height-20, color=clBlack),
+            'status': Label('', x=225, y=self.height-20, color=clBlack),
+            'editing': Label('', x=400, y=self.height-20, color=clBlack)
         }
         self._update_label()
 
@@ -101,6 +102,8 @@ class BoxWorldWindow(pyglet.window.Window):
             self.labels['search'].text = 'Search: '+ search_modes[self.search_mode]
         if key == 'status' or key is None:
             self.labels['status'].text = 'Status: '+ text
+        if key == 'editing' or key is None:
+            self.labels['editing'].text = 'Editing: ' + str(self.world.active_waypoint)
 
     def add_handers(self):
 
@@ -118,6 +121,9 @@ class BoxWorldWindow(pyglet.window.Window):
                 if box:
                     if self.world.editing_waypoints:
                         self.world.edit_waypoint_node(box)
+                        self.world.reset_navgraph()
+                        self.plan_path()
+                        self._update_label('editing','graph changed')
                     else:
                         for agent in self.world.agents:
                             if box == self.world.get_box_by_pos(int(agent.pos.x), int(agent.pos.y)):
@@ -135,9 +141,9 @@ class BoxWorldWindow(pyglet.window.Window):
                             elif box.kind == "X":
                                 self.world.walls.append(box)
 
-                    self.world.reset_navgraph()
-                    self.plan_path()
-                    self._update_label('status','graph changed')
+                        self.world.reset_navgraph()
+                        self.plan_path()
+                        self._update_label('status','graph changed')
 
 
         @self.event
