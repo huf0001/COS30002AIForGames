@@ -152,31 +152,24 @@ class Agent(object):
     # The central logic of the Agent class ------------------------------------------------
 
     def update(self, delta):
+        # check if died
         if self.health <= 0:
             self.position_in_random_box()
             self.get_new_path()
             self.health = self.start_health
             self.hit_time = None
 
-            # for agent in self.world.agents:
-            #     if agent.agent_type is not self.agent_type and agent.target_enemy == self:
-            #         agent.target_enemy = None
-            #         agent.get_new_path()
-
+        # check if been stuck on the same node too long while not following an enemy
         if self.last_new_node_time is not None and not self.following_enemy and (datetime.now() - self.last_new_node_time).total_seconds() > 3:
             self.last_new_node_time = datetime.now()
             self.get_new_path()
-            print("overriding timed out path with wander path")
+            print("overriding timed out path with new path")
 
+        # check if should still display that agent was hit by a weapon
         if self.hit_time is not None and (datetime.now() - self.hit_time).total_seconds() > 0.1:
             self.hit_time = None
 
-        # self.obst_detected = False
-        # self.sensor_obst_detected = False
-
-        # sns_pos = Vector2D(min(self.avoid_radius * 2, self.vel.length()), 0)
-        # self.sensor_pos = self.world.transform_point(sns_pos, self.pos, self.heading, self.side)
-
+        # check which update method to call
         if self.agent_type == "soldier":
             self.update_soldier(delta)
         elif self.agent_type == "fugitive":
@@ -197,7 +190,7 @@ class Agent(object):
                 self.target_enemy = None
 
                 for agent in self.world.agents:
-                    if agent is not self and agent.distance(self.awareness_pos) < self.awareness_radius + agent.radius and (self.target_enemy == None or self.distance(self.target_enemy.pos) > self.distance(agent.pos)):
+                    if agent is not self and (self.target_enemy == None or self.distance(self.target_enemy.pos) > self.distance(agent.pos)) and self.enemy_in_range(agent):
                         self.target_enemy = agent
 
             # if self.path is not None and len(self.path.path) > 0 and self.target_enemy is not None and self.target_enemy.box is not self.target:
@@ -246,7 +239,8 @@ class Agent(object):
             else:
                 self.world.change_weapons(self)
         else:
-            self.movement_mode = "Patrol"
+            if self.movement_mode is not "Patrol":
+                self.movement_mode = "Patrol"
 
             if self.max_speed is not self.max_speed_standard:
                 self.max_speed = self.max_speed_standard
@@ -257,7 +251,7 @@ class Agent(object):
             else:
                 self.follow_graph_path(delta)
         elif self.movement_mode == "Patrol":
-            if self is not self.world.soldiers[0] and self.target is not self.world.soldiers[0].target:
+            if (self is not self.world.soldiers[0] and self.target is not self.world.soldiers[0].target) or (self == self.world.soldiers[0] and self.target not in self.world.waypoints[self.world.current_waypoint].nodes):
                 self.get_new_path()
             
             self.follow_graph_path(delta)
@@ -268,74 +262,18 @@ class Agent(object):
         if self == self.world.soldiers[0] and self.box.waypoint is not None and self.movement_mode is not "Patrol":
             self.world.update_waypoint(self.box.waypoint)
 
+    def enemy_in_range(self, enemy):
+        if enemy.distance(self.awareness_pos) >= self.awareness_radius + enemy.radius:
+            return False
 
+        path_to_enemy = self.calculate_path(search_modes[self.world.window.search_mode], enemy.box, self.world.window.limit)
 
-    # def update_shooter(self, delta):
-    #     self.see_target = False
-    #     self.update_fov(self.world.obstacles, self.world.agents)
+        for box_index in path_to_enemy.path:
+            if (self.awareness_pos - self.world.boxes[box_index].get_vc("agent.path_to_enemy_in_range()")).length() >= self.awareness_radius + enemy.radius:
+                return False
 
-    #     if not self.hungry() and self.choose_weapon():
-    #         if self.see_target or (self.target_enemy is not None and self.distance(self.target_enemy.pos) < self.hunt_dist + self.target_enemy.radius):
-    #             self.movement_mode = 'Attack'
+        return True
 
-    #             if self.last_aware_time is not None:
-    #                 self.last_aware_time = None
-    #         elif self.last_aware_time == None:
-    #             self.movement_mode = 'Patrol'
-    #         elif (datetime.now() - self.last_aware_time).total_seconds() > 10:
-    #             self.last_aware_time = None
-    #             self.movement_mode = 'Patrol'
-    #         else:
-    #             self.movement_mode = 'Resume Attack'
-
-    #         if self.weapons[0].rounds_left_in_magazine == 0 and (datetime.now() - self.last_shot).total_seconds() <= self.weapons[0].reload_time:
-    #             self.combat_mode = 'Reloading'
-    #         else:
-    #             if self.weapons[0].rounds_left_in_magazine == 0:
-    #                 self.weapons[0].rounds_left_in_magazine += self.weapons[0].magazine_size
-    #                 self.weapons[0].magazines_left -= 1
-
-    #             if (datetime.now() - self.last_shot).total_seconds() <= self.weapons[0].cooldown:
-    #                 self.combat_mode = 'Weapon is Loading Next Round'
-    #             elif self.movement_mode == 'Attack':
-    #                 self.combat_mode = 'Aiming'
-    #             elif self.movement_mode == 'Patrol':
-    #                 self.combat_mode = 'Ready'
-
-    #         if self.movement_mode == 'Attack' and self.combat_mode == 'Aiming':
-    #             if len(self.weapons[0].projectile_pool) == 0:
-    #                 self.combat_mode = 'No Projectiles Pooled'
-    #             else:
-    #                 target = self.aim_shot(self.target_enemy)
-
-    #                 if target is not None:
-    #                     self.combat_mode = 'Shooting'
-    #                     self.last_shot = datetime.now()
-    #                     self.weapons[0].rounds_left_in_magazine -= 1
-    #                     self.shoot(target)
-
-    #     elif self.movement_mode == 'Get Food' and self.distance(self.world.food_station) < self.world.station_size:
-    #         self.hunger = 0
-
-    #         if self.last_aware_time is not None:
-    #             self.movement_mode = 'Resume Attack'
-    #         else:
-    #             self.movement_mode = 'Patrol'
-    #     elif self.movement_mode == 'Exchange Weapons' and self.distance(self.world.ammo_station) < self.world.station_size:
-    #         self.world.change_weapons(self)
-            
-    #         if self.last_aware_time is not None:
-    #             self.movement_mode = 'Resume Attack'
-    #         else:
-    #             self.movement_mode = 'Patrol'
-
-    #     if self.movement_mode == 'Get Food' or self.movement_mode == 'Exchange Weapons':
-    #         if self.see_target or (self.target_enemy is not None and self.distance(self.target_enemy.pos) < self.hunt_dist + self.target_enemy.radius):
-    #             self.last_aware_time = datetime.now()
-    #         elif self.last_aware_time is not None and (datetime.now() - self.last_aware_time).total_seconds() > 10:
-    #             self.last_aware_time = None
-
-    #     self.move(delta)
 
     # def hungry(self):
     #     if self.hunger >= 50:
@@ -396,13 +334,15 @@ class Agent(object):
         if self.target_enemy is not None:
             target_health = self.target_enemy.health
 
-        # check if out of ammo or if patrolling and have insufficient ammo to kill the target
+        # check if out of ammo
         if weapon_0_ammo <= 0 and weapon_1_ammo <= 0:
             self.movement_mode = 'Exchange Weapons'
             return False
+        # check if attacking or patrolling and have insufficient ammo to kill the target
         elif self.target_enemy is not None and (self.movement_mode == 'Attack' or self.movement_mode == 'Patrol') and weapon_0_avg_dmg * weapon_0_ammo + weapon_1_avg_dmg * weapon_1_ammo < target_health:
             self.movement_mode = 'Exchange Weapons'
             return False
+        # check if patrolling and would theoretically have insufficient ammo to kill the target
         elif self.target_enemy == None and self.movement_mode == 'Patrol' and weapon_0_avg_dmg * weapon_0_ammo + weapon_1_avg_dmg * weapon_1_ammo < self.start_health:
             self.movement_mode = 'Exchange Weapons'
             return False            
@@ -522,6 +462,10 @@ class Agent(object):
             path = self.path.path
             for i in range(1,len(path)):
                 egi.line_by_pos(self.world.boxes[path[i-1]].get_vc("agent.render(), line from this to box").copy(), self.world.boxes[path[i]].get_vc("agent.render(), line from box to this").copy())
+
+            if self == self.world.soldiers[0]:
+                for i in range(0, len(path)):
+                    egi.circle(self.world.boxes[path[i]].get_vc("agent.render(), soldier leader path").copy(), 3)
 
 
         if self.hit_time is not None:
@@ -669,10 +613,10 @@ class Agent(object):
         def avoid_projectile(self, projectile):
             to_projectile = projectile.pos - self.pos
             desired_vel = to_projectile.perp() * self.max_speed
-            print('desired vel is ' + str(desired_vel))
+            # print('desired vel is ' + str(desired_vel))
             return (desired_vel - self.vel)
 
-        print('checking for projectiles')
+        # print('checking for projectiles')
 
         closest_proj = None
         closest_dist = 9999999999999
@@ -901,7 +845,7 @@ class Agent(object):
     # Marksmanship Methods ------------------------------------------------------------------------
 
     def aim_shot(self, target):
-        print("stationary: " + str(target.pos))
+        # print("stationary: " + str(target.pos))
 
         if target.movement_mode == 'Stationary':
             target_pos = target.pos.copy()
@@ -942,15 +886,15 @@ class Agent(object):
 
                     # is it's predicted pos close enough?
                     if dist < self.target_enemy.radius * 0.1:
-                        print('dist between predicted positions less than 0.1 times the targets radius')
+                        # print('dist between predicted positions less than 0.1 times the targets radius')
                         loop = False
 
                 else:
                     loop = False
 
             target_pos = future_target_pos
-            print("predictive: " + str(target_pos))
-            print("loop count: " + str(loop_count))
+            # print("predictive: " + str(target_pos))
+            # print("loop count: " + str(loop_count))
 
         if self.distance(target_pos) <= self.weapons[0].effective_range + self.target_enemy.radius:
             return target_pos
@@ -1122,89 +1066,35 @@ class Agent(object):
         if self.target in self.world.targets:
             self.world.targets.remove(self.target)
 
-        # self.path = None
-        # self.last_node_box = None
         self.last_new_node_time = datetime.now()
-        # self.current_node_box = None
-        # self.current_node_pos = None
 
         if self.agent_type == "soldier":
+            if self.movement_mode == "Attack":
+                if self.target_enemy is not None:
+                    print(self.agent_type + " getting attacking path")
+                    self.target = self.target_enemy.box
+                else:
+                    self.movement_mode == "Patrol"
+
             if self.movement_mode == "Patrol":
                 if self == self.world.soldiers[0]:
-                    print("commander")
+                    print(self.agent_type + " getting commander path")
                     if self.box.waypoint is not None:
                         self.world.update_waypoint(self.box.waypoint)
                     self.target = self.world.get_current_waypoint_node()
-                    # self.world.waypoints.remove(wp)
-                    # self.world.waypoints.append(wp)
-                    # self.target = self.world.waypoints[0].nodes[0]
-
-                    # # set variables for finding closest waypoint
-                    # # waypoint = None
-                    # wa = None
-                    # #path = None
-                    # path_length = 9999999999
-                    # t_path = None
-                    # t_path_length = 999999999
-                    # i = 0
-
-                    # # find the closest waypoint
-                    # while i < len(self.world.waypoints):
-                    #     waypoint = self.world.waypoints[i]
-
-                    #     if waypoint is not self.box:
-                    #         self.target = self.world.waypoints[i]
-                    #         self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
-                    #         t_path = self.path
-                    #         t_path_length = self.get_path_length(t_path.path)
-
-                    #         if wa or t_path_length < path_length: #swapped wa with waypoint
-                    #             # waypoint = self.target
-                    #             wa = i
-                    #             #path = t_path
-                    #             path_length = t_path_length
-
-                    #         i += 1
-
-                    # # get index of next waypoint after closest waypoint
-                    # wb = wa + 1
-
-                    # if wb >= len(self.world.waypoints):
-                    #     wb = 0
-
-                    # # get distance from closest waypoint to next waypoint after it
-                    # pos = self.pos
-                    # self.pos = self.world.waypoints[wa].get_vc("agent.get_new_path, soldier patrolling, 1")
-                    # self.target = self.world.waypoints[wb]
-                    # self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
-                    # path_wa_to_wb = self.path
-                    # path_wa_to_wb_length = self.get_path_length(path_wa_to_wb.path)
-
-                    # # get distance from self to next waypoint after closest waypoint
-                    # self.pos = pos
-                    # self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
-                    # path_self_to_wb = self.path
-                    # path_self_to_wb_length = self.get_path_length(path_self_to_wb.path)
-
-                    # # set optimal waypoint as target
-                    # if path_wa_to_wb_length < path_self_to_wb_length:
-                    #     self.target = self.world.waypoints[wa]
-                    # else:
-                    #     self.target = self.world.waypoints[wb]
                 else:
-                    print("trooper")
-                    # l = self.world.soldiers[0]
-                    # sc = self.world.scale_vector
+                    print(self.agent_type + " getting trooper path")
                     self.target = self.world.soldiers[0].target
-                    # target = self.world.soldiers[0].target # self.world.get_box_by_pos(int(randrange(int(l.pos.x - l.radius * 1.5), int(l.pos.x + l.radius * 1.5))), int(randrange(int(l.pos.y - l.radius * 1.5), int(l.pos.y + l.radius * 1.5))))
+        elif self.agent_type == "fugitive":
+            print(self.agent_type + " getting wandering path")
+            target = self.world.boxes[randrange(0, len(self.world.boxes))]
 
-                    # while target.kind == "X" or target == self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y)):
-                    #     target = self.world.get_box_by_pos(int(randrange(int(l.pos.x - l.radius * 1.5), int(l.pos.x + l.radius * 1.5))), int(randrange(int(l.pos.y - l.radius * 1.5), int(l.pos.y + l.radius * 1.5)))
-            elif self.movement_mode == "Attack":
-                print("attacking")
-                self.target = self.target_enemy.box
+            while target.kind == "X" or target == self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y)):
+                target = self.world.boxes[randrange(0, len(self.world.boxes))]
+               
+            self.target = target
         else:
-            print("wandering")
+            print("Error: Invalid agent type submitted to agent.get_new_path(). " + self.agent_type + " defaulting to wandering.")
             target = self.world.boxes[randrange(0, len(self.world.boxes))]
 
             while target.kind == "X" or target == self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y)):
@@ -1215,54 +1105,21 @@ class Agent(object):
         self.world.targets.append(self.target)
         self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
 
-    def get_path_length(self, path):
-        total_dist = 0
-        boxes = self.world.boxes
+    # def get_path_length(self, path):
+    #     total_dist = 0
+    #     boxes = self.world.boxes
 
-        if path is not None:
-            # current node to first node in path
-            dist = self.distance(boxes[path[0]].get_vc("agent.get_path_length(), self to first node in path, path node"))
-            total_dist += dist
+    #     if path is not None:
+    #         # current node to first node in path
+    #         dist = self.distance(boxes[path[0]].get_vc("agent.get_path_length(), self to first node in path, path node"))
+    #         total_dist += dist
 
-            # first node in path to last node in path
-            for i in range(1, len(path)):
-                dist = (boxes[path[i]].get_vc("agent.get_path_length(), path nodes, " + str(i)) - boxes[path[i-1]].get_vc("agent.get_path_length(), path nodes, " + str(i-1))).length()
-                total_dist += dist
+    #         # first node in path to last node in path
+    #         for i in range(1, len(path)):
+    #             dist = (boxes[path[i]].get_vc("agent.get_path_length(), path nodes, " + str(i)) - boxes[path[i-1]].get_vc("agent.get_path_length(), path nodes, " + str(i-1))).length()
+    #             total_dist += dist
 
-        return total_dist
-
-    # def get_trooper_path(self):
-    #     print("trooper")
-    #     l = self.world.soldiers[0]
-    #     sc = self.world.scale_vector
-    #     target = self.world.soldiers[0].target # self.world.get_box_by_pos(int(randrange(int(l.pos.x - l.radius * 1.5), int(l.pos.x + l.radius * 1.5))), int(randrange(int(l.pos.y - l.radius * 1.5), int(l.pos.y + l.radius * 1.5))))
-
-    #     # while target.kind == "X" or target == self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y)):
-    #     #     target = self.world.get_box_by_pos(int(randrange(int(l.pos.x - l.radius * 1.5), int(l.pos.x + l.radius * 1.5))), int(randrange(int(l.pos.y - l.radius * 1.5), int(l.pos.y + l.radius * 1.5))))
-    
-    #     if self.target is not None and self.target in self.world.targets:
-    #         self.world.targets.remove(self.target)
-    
-    #     self.target = target
-    #     self.world.targets.append(target)
-
-    #     self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
-        
-
-    # def get_wander_path(self):
-    #     target = self.world.boxes[randrange(0, len(self.world.boxes))]
-
-    #     while target.kind == "X" or target == self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y)):
-    #         target = self.world.boxes[randrange(0, len(self.world.boxes))]
-    
-    #     if self.target is not None and self.target in self.world.targets:
-    #         self.world.targets.remove(self.target)
-    
-    #     self.target = target
-    #     self.world.targets.append(target)
-
-    #     self.plan_path(search_modes[self.world.window.search_mode], self.world.window.limit)
-    #     print("Agent path: " + self.path.report(verbose=3))
+    #     return total_dist
 
     def update_hunt_dist(self):
         dist_multiplier = 1.25
@@ -1349,7 +1206,7 @@ class Agent(object):
         self.see_target = False
 
         for agent in agents:
-            if agent.agent_type is not self.agent_type and agent.distance(self.awareness_pos) < self.awareness_radius + agent.radius:
+            if agent.agent_type is not self.agent_type and self.enemy_in_range(agent):
                 self.see_target = True
                 return
 
@@ -1362,6 +1219,10 @@ class Agent(object):
         self.weapons[1] = temp
 
         self.last_shot = datetime.now()
+
+    def calculate_path(self, search, target_box, limit):
+        cls = SEARCHES[search]
+        return cls(self.world.graph, self.box.idx, target_box.idx, limit)
 
     def plan_path(self, search, limit):
         '''Conduct a nav-graph search from the current world start node to the

@@ -61,7 +61,7 @@ class Projectile(object):
                 print("projectile passed a none value for delta")
 
             while i < 4:
-                print("projectile i is " + str(i))
+                # print("projectile i is " + str(i))
                 self.pos += self.vel * delta * 0.2
 
                 if self.pos.x < 0 or self.pos.x > self.world.cx or self.pos.y < 0 or self.pos.y > self.world.cy:

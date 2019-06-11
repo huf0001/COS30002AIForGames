@@ -72,8 +72,6 @@ class BoxWorldWindow(pyglet.window.Window):
         self.world.window = self
         self.world.reset_navgraph()
 
-        # self.world.set_targets(9)
-
         # prep the fps display and some labels
         self.fps_display = clock.ClockDisplay() # None 
         clBlack = (0,0,0, 255)
@@ -216,8 +214,8 @@ class BoxWorldWindow(pyglet.window.Window):
         self.world.plan_path(search_modes[self.search_mode], self.limit)
         self._update_label('status', 'path planned')
         # print(self.world.path.report(verbose=3))
-        for agent in self.world.agents:
-            print("Agent path: " + agent.path.report(verbose=3))
+        # for agent in self.world.agents:
+        #     print("Agent path: " + agent.path.report(verbose=3))
 
     def on_draw(self):
         self.clear()

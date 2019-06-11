@@ -280,13 +280,34 @@ class BoxWorld(object):
             self.waypoints.append(Waypoint(index=i))
             i += 1
 
-    def get_box_by_index(self, ix, iy):
-        idx = (self.nx * iy) + ix
-        return self.boxes[idx] if idx < len(self.boxes) else None
+    # Setup Methods----------------------------------------------------------------------------------------------------------------------------------
 
-    def get_box_by_pos(self, x, y):
-        idx = (self.nx * (y // self.wy)) + (x // self.wx)
-        return self.boxes[idx] if idx < len(self.boxes) else None
+    def _add_edge(self, from_idx, to_idx, distance=1.0):
+        b = self.boxes
+        if b[to_idx].kind not in no_edge: # stone wall
+            cost = edge_cost(b[from_idx].kind, b[to_idx].kind)
+            self.graph.add_edge(Edge(from_idx, to_idx, cost*distance))
+
+    def _hypot(self, idx1, idx2):
+        '''Return the straight line distance between two points on a 2-D
+        Cartesian plane. Argh, Pythagoras... trouble maker. '''
+        x1, y1 = self.boxes[idx1].pos
+        x2, y2 = self.boxes[idx2].pos
+        return hypot(x1-x2, y1-y2) * min_edge_cost
+
+    def _manhattan(self, idx1, idx2):
+        ''' Manhattan distance between two nodes in boxworld, assuming the
+        minimal edge cost so that we don't overestimate the cost). '''
+        x1, y1 = self.boxes[idx1].pos
+        x2, y2 = self.boxes[idx2].pos
+        return (abs(x1-x2) + abs(y1-y2)) * min_edge_cost
+
+    def _max(self, idx1, idx2):
+        '''Return the straight line distance between two points on a 2-D
+        Cartesian plane. Argh, Pythagoras... trouble maker. '''
+        x1, y1 = self.boxes[idx1].pos
+        x2, y2 = self.boxes[idx2].pos
+        return max(abs(x1-x2),abs(y1-y2)) * min_edge_cost
 
     def find_walls(self, boxes):
         walls = []
@@ -295,7 +316,112 @@ class BoxWorld(object):
             if box.kind == "X":
                 walls.append(box)
 
-        return walls
+        return walls    
+
+    def set_agents(self):
+        self.soldiers.append(Agent(world=self, agent_type="soldier", box=62))
+        # self.soldiers.append(Agent(world=self, agent_type="soldier", box=60))
+        # self.soldiers.append(Agent(world=self, agent_type="soldier", box=2))
+        # self.soldiers.append(Agent(world=self, agent_type="soldier", box=0))
+
+        self.fugitives.append(Agent(world=self))
+        self.fugitives.append(Agent(world=self))
+        self.fugitives.append(Agent(world=self))
+        self.fugitives.append(Agent(world=self))
+
+        for soldier in self.soldiers:
+            self.agents.append(soldier)
+
+        for fugitive in self.fugitives:
+            self.agents.append(fugitive)
+
+        self.soldiers[0].target = self.waypoints[0].nodes[0]
+        self.soldiers[0].plan_path(search_modes[self.window.search_mode], self.window.limit)
+        # pass
+
+    def set_waypoints(self):
+        i = 0
+        j = 0
+
+        while i < len(self.waypoints):
+
+            while j < len(self.waypoints[i].nodes):
+                self.waypoints[i].nodes[j] = self.boxes[self.waypoints[i].nodes[j]]
+                self.waypoints[i].nodes[j].waypoint = i
+                j += 1
+
+            j = 0                
+            i += 1  
+                  
+    def set_weapons(self):
+        # add weapons
+        self.weapons.append(Weapon(
+            world = self, 
+            name = 'Rifle', 
+            cooldown = 1.5,                 # max rpm of 0.5 sec / round
+            effective_range = 2300,    # effective range 2300 m
+            speed = 200,
+            damage = 50, 
+            damage_factor = 1,
+            reload_time = 2.6, 
+            magazine_size = 4, 
+            magazines = 1,#6, 
+            accuracy_modifier = 0,
+            stamina_drain=4))
+        # self.weapons.append(Weapon(
+        #     world = self, 
+        #     name = 'Rocket', 
+        #     cooldown = 1.5,                 # max rpm of 0.6 sec / round 
+        #     effective_range = 160,      # estimated effective range 160 m
+        #     speed = 100,
+        #     damage = 6,                     # explosive; does damage over time
+        #     damage_factor = 20,
+        #     reload_time = 3, 
+        #     magazine_size = 2, 
+        #     magazines = 1,#4, 
+        #     accuracy_modifier = 0,
+        #     stamina_drain=5)) 
+        self.weapons.append(Weapon(
+            world = self, 
+            name = 'Hand Gun', 
+            cooldown = 0.286,               # max rpm
+            effective_range = 122.7,    # effective range 122.7 m
+            speed = 200,
+            damage = 20, 
+            damage_factor = 1,
+            reload_time = 1.8, 
+            magazine_size = 12, 
+            magazines = 1,#10, 
+            accuracy_modifier = 5,
+            stamina_drain=2))
+        # self.weapons.append(Weapon(
+        #     world = self, 
+        #     name = 'Hand Grenade', 
+        #     cooldown = 2,                   # estimated max rpm of 2 sec / round 
+        #     effective_range = 75,       # estimated effective range 75 m
+        #     speed = 100,
+        #     damage = 4,                     # explosive; does damage over time
+        #     damage_factor = 20,
+        #     reload_time = 2, 
+        #     magazine_size = 8, 
+        #     magazines = 1,#2, 
+        #     accuracy_modifier = 5,
+        #     stamina_drain=1))
+        self.weapons.append(Weapon(
+            world = self, 
+            name = 'Shotgun', 
+            cooldown = 1,                   # max rpm of 1 sec / round
+            effective_range = 6 * 5,       # estimated effective range 5 m 
+            speed = 200,
+            damage = 20,                    # multiple pellets; damage is spread out amongst them
+            damage_factor = 3,
+            reload_time = 6, 
+            magazine_size = 12, 
+            magazines = 1,#5, 
+            accuracy_modifier = 5,
+            stamina_drain=3))
+
+    # Recurring Methods------------------------------------------------------------------------------------------------------------------------------
 
     def update(self, delta):
         if not self.paused:
@@ -369,69 +495,21 @@ class BoxWorld(object):
                 egi.set_stroke(1)
 
         for agent in self.agents:
-            # egi.set_pen_color(name='ORANGE')
-            # egi.set_stroke(2)
-            # egi.circle(agent.pos, agent.radius)
             agent.render()
 
         for projectile in self.projectiles:
             projectile.render()
 
-    def resize(self, cx, cy):
-        self.cx, self.cy = cx, cy # world size
-        self.wx = (cx-1) // self.nx
-        self.wy = (cy-1) // self.ny # int div - box width/height
+    # Triggered Methods------------------------------------------------------------------------------------------------------------------------------
 
-        self.scale_vector = Point2D(cx / self.original_cx, cy / self.original_cy)
-        self.scale_scalar = (self.scale_vector.x + self.scale_vector.y) / 2
-
-        for i in range(len(self.boxes)):
-            # basic positions (bottom left to top right)
-            x = (i % self.nx) * self.wx
-            y = (i // self.nx) * self.wy
-            # top, right, bottom, left
-            coords = (y + self.wy -1, x + self.wx -1, y, x)
-            self.boxes[i].reposition(coords)
+    def plan_path(self, search, limit):
+        '''Conduct a nav-graph search from the current world start node to the
+        current target node, using a search method that matches the string
+        specified in `search`.
+        '''
 
         for agent in self.agents:
-            agent.radius = agent.radius_standard * self.scale_scalar
-            agent.avoid_radius = agent.avoid_radius_standard * self.scale_scalar
-            agent.awareness_radius = agent.awareness_radius_standard * self.scale_scalar
-            agent.pos = agent.box._vc
-
-            if agent.current_node_box != None:
-                agent.current_node_pos = agent.current_node_box._vc
-
-        for weapon in self.weapons:
-            weapon.effective_range = weapon.effective_range_standard * self.scale_scalar
-
-    def _add_edge(self, from_idx, to_idx, distance=1.0):
-        b = self.boxes
-        if b[to_idx].kind not in no_edge: # stone wall
-            cost = edge_cost(b[from_idx].kind, b[to_idx].kind)
-            self.graph.add_edge(Edge(from_idx, to_idx, cost*distance))
-
-    def _manhattan(self, idx1, idx2):
-        ''' Manhattan distance between two nodes in boxworld, assuming the
-        minimal edge cost so that we don't overestimate the cost). '''
-        x1, y1 = self.boxes[idx1].pos
-        x2, y2 = self.boxes[idx2].pos
-        return (abs(x1-x2) + abs(y1-y2)) * min_edge_cost
-
-    def _hypot(self, idx1, idx2):
-        '''Return the straight line distance between two points on a 2-D
-        Cartesian plane. Argh, Pythagoras... trouble maker. '''
-        x1, y1 = self.boxes[idx1].pos
-        x2, y2 = self.boxes[idx2].pos
-        return hypot(x1-x2, y1-y2) * min_edge_cost
-
-    def _max(self, idx1, idx2):
-        '''Return the straight line distance between two points on a 2-D
-        Cartesian plane. Argh, Pythagoras... trouble maker. '''
-        x1, y1 = self.boxes[idx1].pos
-        x2, y2 = self.boxes[idx2].pos
-        return max(abs(x1-x2),abs(y1-y2)) * min_edge_cost
-
+            agent.plan_path(search, limit)
 
     def reset_navgraph(self):
         ''' Create and store a new nav graph for this box world configuration.
@@ -488,21 +566,50 @@ class BoxWorld(object):
             # DOWN RIGHT (i - nx + 1)
             j = i - nx
             if (j+1) >= 0 and (j%nx +1) < nx:
-                self._add_edge(i, j+1, 1.4142)
+                self._add_edge(i, j+1, 1.4142)        
 
-    def set_waypoints(self):
-        i = 0
-        j = 0
+    def resize(self, cx, cy):
+        self.cx, self.cy = cx, cy # world size
+        self.wx = (cx-1) // self.nx
+        self.wy = (cy-1) // self.ny # int div - box width/height
 
-        while i < len(self.waypoints):
+        self.scale_vector = Point2D(cx / self.original_cx, cy / self.original_cy)
+        self.scale_scalar = (self.scale_vector.x + self.scale_vector.y) / 2
 
-            while j < len(self.waypoints[i].nodes):
-                self.waypoints[i].nodes[j] = self.boxes[self.waypoints[i].nodes[j]]
-                self.waypoints[i].nodes[j].waypoint = i
-                j += 1
+        for i in range(len(self.boxes)):
+            # basic positions (bottom left to top right)
+            x = (i % self.nx) * self.wx
+            y = (i // self.nx) * self.wy
+            # top, right, bottom, left
+            coords = (y + self.wy -1, x + self.wx -1, y, x)
+            self.boxes[i].reposition(coords)
 
-            j = 0                
-            i += 1
+        for agent in self.agents:
+            agent.radius = agent.radius_standard * self.scale_scalar
+            agent.avoid_radius = agent.avoid_radius_standard * self.scale_scalar
+            agent.awareness_radius = agent.awareness_radius_standard * self.scale_scalar
+            agent.pos = agent.box._vc
+
+            if agent.current_node_box != None:
+                agent.current_node_pos = agent.current_node_box._vc
+
+        for weapon in self.weapons:
+            weapon.effective_range = weapon.effective_range_standard * self.scale_scalar
+
+    # Utility Methods: Get Box By METHOD-------------------------------------------------------------------------------------------------------------
+
+    def get_box_by_index(self, ix, iy):
+        idx = (self.nx * iy) + ix
+        return self.boxes[idx] if idx < len(self.boxes) else None
+
+    def get_box_by_pos(self, x, y):
+        idx = (self.nx * (y // self.wy)) + (x // self.wx)
+        return self.boxes[idx] if idx < len(self.boxes) else None
+
+    # Utility Methods: Waypoints---------------------------------------------------------------------------------------------------------------------
+
+    def get_current_waypoint_node(self):
+        return self.waypoints[self.current_waypoint].nodes[0]
 
     def edit_waypoint_node(self, node):
         active_waypoint = self.waypoints[self.active_waypoint]
@@ -543,101 +650,11 @@ class BoxWorld(object):
                 if self.last_waypoint < 0:
                     self.last_waypoint = len(self.waypoints) - 1
 
-            print("Regressed Waypoint. Current Waypoint: " + str(self.current_waypoint) + ", Last Waypoint: " + str(self.last_waypoint) + ".")
+            print("Regressed Waypoint. Last Waypoint: " + str(self.last_waypoint) + ", Current Waypoint: " + str(self.current_waypoint) + ".")
         else:
             print("Error: soldier leader triggered a waypoint that it should not have been able to trigger.")
 
-    def get_current_waypoint_node(self):
-        return self.waypoints[self.current_waypoint].nodes[0]
-
-    def set_agents(self):
-        self.soldiers.append(Agent(world=self, agent_type="soldier", box=62))
-        # self.soldiers.append(Agent(world=self, agent_type="soldier", box=60))
-        # self.soldiers.append(Agent(world=self, agent_type="soldier", box=2))
-        # self.soldiers.append(Agent(world=self, agent_type="soldier", box=0))
-
-        self.fugitives.append(Agent(world=self))
-        self.fugitives.append(Agent(world=self))
-        self.fugitives.append(Agent(world=self))
-        self.fugitives.append(Agent(world=self))
-
-        for soldier in self.soldiers:
-            self.agents.append(soldier)
-
-        for fugitive in self.fugitives:
-            self.agents.append(fugitive)
-
-        self.soldiers[0].target = self.waypoints[0].nodes[0]
-        self.soldiers[0].plan_path(search_modes[self.window.search_mode], self.window.limit)
-        # pass
-        
-    def set_weapons(self):
-        # add weapons
-        self.weapons.append(Weapon(
-            world = self, 
-            name = 'Rifle', 
-            cooldown = 1.5,                 # max rpm of 0.5 sec / round
-            effective_range = 2300,    # effective range 2300 m
-            speed = 200,
-            damage = 50, 
-            damage_factor = 1,
-            reload_time = 2.6, 
-            magazine_size = 4, 
-            magazines = 1,#6, 
-            accuracy_modifier = 0,
-            stamina_drain=4))
-        # self.weapons.append(Weapon(
-        #     world = self, 
-        #     name = 'Rocket', 
-        #     cooldown = 1.5,                 # max rpm of 0.6 sec / round 
-        #     effective_range = 160,      # estimated effective range 160 m
-        #     speed = 100,
-        #     damage = 6,                     # explosive; does damage over time
-        #     damage_factor = 20,
-        #     reload_time = 3, 
-        #     magazine_size = 2, 
-        #     magazines = 1,#4, 
-        #     accuracy_modifier = 0,
-        #     stamina_drain=5)) 
-        self.weapons.append(Weapon(
-            world = self, 
-            name = 'Hand Gun', 
-            cooldown = 0.286,               # max rpm
-            effective_range = 122.7,    # effective range 122.7 m
-            speed = 200,
-            damage = 20, 
-            damage_factor = 1,
-            reload_time = 1.8, 
-            magazine_size = 12, 
-            magazines = 1,#10, 
-            accuracy_modifier = 5,
-            stamina_drain=2))
-        # self.weapons.append(Weapon(
-        #     world = self, 
-        #     name = 'Hand Grenade', 
-        #     cooldown = 2,                   # estimated max rpm of 2 sec / round 
-        #     effective_range = 75,       # estimated effective range 75 m
-        #     speed = 100,
-        #     damage = 4,                     # explosive; does damage over time
-        #     damage_factor = 20,
-        #     reload_time = 2, 
-        #     magazine_size = 8, 
-        #     magazines = 1,#2, 
-        #     accuracy_modifier = 5,
-        #     stamina_drain=1))
-        self.weapons.append(Weapon(
-            world = self, 
-            name = 'Shotgun', 
-            cooldown = 1,                   # max rpm of 1 sec / round
-            effective_range = 6 * 5,       # estimated effective range 5 m 
-            speed = 200,
-            damage = 20,                    # multiple pellets; damage is spread out amongst them
-            damage_factor = 3,
-            reload_time = 6, 
-            magazine_size = 12, 
-            magazines = 1,#5, 
-            accuracy_modifier = 5,
-            stamina_drain=3))
+    # Utility Methods: Weapons
 
     def change_weapons(self, soldier):
         print("changing weapons for " + soldier.agent_type)
@@ -655,12 +672,28 @@ class BoxWorld(object):
             else:
                 weapon = available[0]
 
-            # self.replenish_weapon(weapon)
+            self.replenish_weapon(weapon)
             soldier.weapons.append(weapon.copy())
             weapon.owner = soldier
             available.remove(weapon)
             print("added weapon " + weapon.name)
+    
+    def destroy_projectile(self, projectile):
+        # print('Destroying projectile. Projectile pool length: ' + str(len(projectile.weapon.projectile_pool)) + '.')
 
+        # remove projectile from world so that it does not render or update
+        if projectile in self.projectiles:
+            self.projectiles.remove(projectile)
+
+        # return projectile to shooter's projectile pool
+        projectile.vel = None
+        projectile.target = None
+        projectile.explosion_time = None
+        projectile.owner_on_firing = None
+
+        projectile.weapon.projectile_pool.append(projectile)
+        # print('Destroyed projectile. Projectile pool length: ' + str(len(projectile.weapon.projectile_pool)))
+    
     def replenish_weapon(self, weapon):
         weapon.rounds_left_in_magazine = 0
 
@@ -674,6 +707,8 @@ class BoxWorld(object):
             weapon.magazines_left = 1#2
         elif weapon.name == 'Shotgun':
             weapon.magazines_left = 1#5
+
+    # Utility Methods: Transforming Points-----------------------------------------------------------------------------------------------------------
 
     def transform_point(self, point, pos, forward, side):
         ''' Transform the given single point, using the provided position,
@@ -709,72 +744,7 @@ class BoxWorld(object):
         # done
         return wld_pts
 
-    # def set_start(self, idx):
-    #     '''Set the start box based on its index idx value. '''
-    #     # remove any existing start node, set new start node
-    #     # if self.target == self.boxes[idx]:
-    #     #     print("Can't have the same start and end boxes!")
-    #     #     return
-    #     # if self.start:
-    #     #     self.start.marker = None
-    #     # self.start = self.boxes[idx]
-    #     # self.start.marker = 'S'
-
-    # def set_target(self, target_num, box):
-    #     '''Set the target box based on its index idx value. '''
-    #     # remove any existing target node, set new target node
-    #     if self.start == self.boxes[box]:
-    #         print("Can't have the same start and end boxes!")
-    #         return
-    #     if self.targets[target_num] is not None:
-    #         self.targets[target_num].marker = None
-    #     self.targets[target_num] = self.boxes[box]
-    #     self.targets[target_num].marker = str(target_num)
-
-    def set_targets(self, count):
-        # for target in self.targets:
-        #     target.marker = None
-
-        self.targets = []
-        existing = []
-        i = 0
-        
-        while len(self.targets) < count:
-            box_idx = randrange(0, len(self.boxes))
-
-            while self.boxes[box_idx].kind == "X" or box_idx in existing:
-                box_idx = randrange(0, len(self.boxes))
-
-            existing.append(box_idx)
-            self.targets.append(self.boxes[box_idx])
-            # self.targets[i].marker = str(i)
-            self.agents[i].target = self.targets[i]
-            i += 1
-
-    def plan_path(self, search, limit):
-        '''Conduct a nav-graph search from the current world start node to the
-        current target node, using a search method that matches the string
-        specified in `search`.
-        '''
-
-        for agent in self.agents:
-            agent.plan_path(search, limit)
-
-    def destroy_projectile(self, projectile):
-        print('Destroying projectile. Projectile pool length: ' + str(len(projectile.weapon.projectile_pool)) + '.')
-
-        # remove projectile from world so that it does not render or update
-        if projectile in self.projectiles:
-            self.projectiles.remove(projectile)
-
-        # return projectile to shooter's projectile pool
-        projectile.vel = None
-        projectile.target = None
-        projectile.explosion_time = None
-        projectile.owner_on_firing = None
-
-        projectile.weapon.projectile_pool.append(projectile)
-        print('Destroyed projectile. Projectile pool length: ' + str(len(projectile.weapon.projectile_pool)))
+    # Read From File Setup Method--------------------------------------------------------------------------------------------------------------------
 
     @classmethod
     def FromFile(cls, filename, pixels=(500,500) ):
