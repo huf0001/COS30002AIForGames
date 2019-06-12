@@ -168,6 +168,8 @@ class BoxWorldWindow(pyglet.window.Window):
             # Plan a path using the current search mode?
             elif symbol == key.SPACE:
                 self.world.editing_waypoints = not self.world.editing_waypoints
+            elif symbol == key.A:
+                self.world.show_awareness_range = not self.world.show_awareness_range
             elif symbol == key.E:
                 cfg['EDGES_ON'] = not cfg['EDGES_ON']
             elif symbol == key.L:
@@ -184,6 +186,8 @@ class BoxWorldWindow(pyglet.window.Window):
                 self.world.paused = not self.world.paused
             elif symbol == key.T:
                 cfg['TREE_ON'] = not cfg['TREE_ON']
+            elif symbol == key.W:
+                self.world.show_weapon_range = not self.world.show_weapon_range
 
             elif symbol == key.UP:
                 self.limit += 1

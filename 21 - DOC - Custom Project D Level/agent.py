@@ -41,17 +41,18 @@ class Agent(object):
         'fast': 0.3
     }
 
-    def __init__(self, world=None, scale=30.0, agent_type="fugitive", movement_mode=None, combat_mode=None, weapons=[], radius=6.0, box=None, path=None):
+    def __init__(self, world=None, scale=30.0, agent_type="fugitive", movement_mode=None, combat_mode=None, weapons=[], radius=6.0, box=None, path=None, name="Agent"):
         # keep a reference to the world object
         self.world = world
+        self.name = name
         self.agent_type = agent_type
         self.movement_mode = movement_mode
         self.combat_mode = combat_mode
         self.weapons = weapons
         self.ready = False
 
-        self.health = 100
-        self.start_health = 100
+        self.health = 1000
+        self.start_health = 1000
 
         if self.agent_type == 'soldier':
             self.health = self.health ** 3
@@ -128,11 +129,13 @@ class Agent(object):
         self.last_shot = datetime.now()
         self.hunt_dist = 0
 
-        self.hunger = 0
-        self.last_hunger_ping = None
+        # self.hunger = 0
+        # self.last_hunger_ping = None
 
-        if self.agent_type == 'soldier':
-            self.world.change_weapons(self)
+        self.fear = 0
+        self.last_fear_ping = None
+
+        self.world.change_weapons(self)
 
         self.last_aware_time = None
         self.last_node_box = None
@@ -152,15 +155,8 @@ class Agent(object):
     # The central logic of the Agent class ------------------------------------------------
 
     def update(self, delta):
-        # check if died
-        if self.health <= 0:
-            self.position_in_random_box()
-            self.get_new_path()
-            self.health = self.start_health
-            self.hit_time = None
-
         # check if been stuck on the same node too long while not following an enemy
-        if self.last_new_node_time is not None and not self.following_enemy and (datetime.now() - self.last_new_node_time).total_seconds() > 3:
+        if self.last_new_node_time is not None and self.movement_mode is not "Stationary" and not self.following_enemy and (datetime.now() - self.last_new_node_time).total_seconds() > 3:
             self.last_new_node_time = datetime.now()
             self.get_new_path()
             print("overriding timed out path with new path")
@@ -183,21 +179,20 @@ class Agent(object):
         if self.see_target:
             self.movement_mode = "Attack"
 
-            if self.max_speed == self.max_speed_standard:
-                self.max_speed *= 1.25
-
             if self.target_enemy == None or self.target_enemy.distance(self.pos) > self.awareness_radius + self.target_enemy.radius:
                 self.target_enemy = None
 
                 for agent in self.world.agents:
-                    if agent is not self and (self.target_enemy == None or self.distance(self.target_enemy.pos) > self.distance(agent.pos)) and self.enemy_in_range(agent):
+                    if agent.agent_type is not self.agent_type and (self.target_enemy == None or self.distance(self.target_enemy.pos) > self.distance(agent.pos)) and self.enemy_in_range(agent):
                         self.target_enemy = agent
 
-            # if self.path is not None and len(self.path.path) > 0 and self.target_enemy is not None and self.target_enemy.box is not self.target:
+                # print(self.name + " attacking " + self.target_enemy.name)
+
             if self.target_enemy is not None and self.target_enemy.box is not self.target:
                 self.get_new_path()
 
             if self.choose_weapon():
+                # set movement mode
                 if self.see_target:
                     self.movement_mode = 'Attack'
 
@@ -211,6 +206,7 @@ class Agent(object):
                 else:
                     self.movement_mode = 'Resume Attack'
 
+                # set combat mode and handle reloading
                 if self.weapons[0].rounds_left_in_magazine == 0 and (datetime.now() - self.last_shot).total_seconds() <= self.weapons[0].reload_time:
                     self.combat_mode = 'Reloading'
                 else:
@@ -225,6 +221,7 @@ class Agent(object):
                     elif self.movement_mode == 'Patrol':
                         self.combat_mode = 'Ready'
 
+                # aim and shoot
                 if self.movement_mode == 'Attack' and self.combat_mode == 'Aiming':
                     if len(self.weapons[0].projectile_pool) == 0:
                         self.combat_mode = 'No Projectiles Pooled'
@@ -259,277 +256,290 @@ class Agent(object):
         self.update_heading()
         self.box = self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y))
 
-        if self == self.world.soldiers[0] and self.box.waypoint is not None and self.movement_mode is not "Patrol":
-            self.world.update_waypoint(self.box.waypoint)
-
-    def enemy_in_range(self, enemy):
-        if enemy.distance(self.awareness_pos) >= self.awareness_radius + enemy.radius:
-            return False
-
-        path_to_enemy = self.calculate_path(search_modes[self.world.window.search_mode], enemy.box, self.world.window.limit)
-
-        for box_index in path_to_enemy.path:
-            if (self.awareness_pos - self.world.boxes[box_index].get_vc("agent.path_to_enemy_in_range()")).length() >= self.awareness_radius + enemy.radius:
-                return False
-
-        return True
-
-
-    # def hungry(self):
-    #     if self.hunger >= 50:
-    #         self.world.destroy_agent(self)
-
-    #     if self.last_hunger_ping == None:
-    #         self.last_hunger_ping = datetime.now()
-
-    #     if (datetime.now() - self.last_hunger_ping).total_seconds() >= 1:
-    #         self.last_hunger_ping = datetime.now()
-    #         self.hunger += 1
-
-    #     if self.movement_mode == 'Get Food':
-    #         return True
-    #     elif self.movement_mode == 'Patrol':
-    #         max_distance = (Vector2D(0,0) - Vector2D(self.world.cx, self.world.cy)).length()
-    #         max_time = max_distance / self.max_speed
-
-    #         if (self.hunger + max_time) * 1.1 >= 50:
-    #             self.movement_mode = 'Get Food'
-    #             return True
-
-    #     elif self.movement_mode == 'Attack':
-    #         current_distance = self.distance(self.world.food_station)
-    #         current_time = current_distance / self.max_speed
-
-    #         if (self.hunger + current_time) * 1.1 >= 50:
-    #             self.movement_mode = 'Get Food'
-    #             return True
-
-    #     return False
+        # if self == self.world.soldiers[0] and self.box.waypoint is not None and self.movement_mode is not "Patrol":
+        #     self.world.update_waypoint(self.box.waypoint)
 
     def update_fugitive(self, delta):
-        if self.path == None:
-            self.get_new_path()
+        # check if died
+        if self.health <= 0:
+            self.position_in_random_box()
+            self.path = None
+            self.health = self.start_health
+            self.hit_time = None
+            self.movement_mode = "Stationary"
+            self.fear = 0
+            self.last_fear_ping = None
 
-        self.follow_graph_path(delta)
+        self.awareness_pos = Vector2D(self.awareness_radius * 0.625, 0)
+        self.awareness_pos = self.world.transform_point(self.awareness_pos, self.pos, self.heading, self.side)
+        self.look(self.world.agents)
+
+        if not self.scared():
+            if self.see_target:
+                self.movement_mode = "Attack"
+
+                if self.max_speed == self.max_speed_standard:
+                    self.max_speed *= 1.25
+
+                if self.target_enemy == None or self.target_enemy.distance(self.pos) > self.awareness_radius + self.target_enemy.radius:
+                    self.target_enemy = None
+
+                    for agent in self.world.agents:
+                        if agent.agent_type is not self.agent_type and (self.target_enemy == None or self.distance(self.target_enemy.pos) > self.distance(agent.pos)) and self.enemy_in_range(agent):
+                            self.target_enemy = agent
+
+                    # print(self.name + " attacking " + self.target_enemy.name)
+
+                if self.target_enemy is not None and self.target_enemy.box is not self.target:
+                    self.get_new_path()
+
+                if self.choose_weapon():
+                    if self.see_target:
+                        self.movement_mode = 'Attack'
+                    else:
+                        self.movement_mode = "Stationary"
+
+                    if self.weapons[0].rounds_left_in_magazine == 0 and (datetime.now() - self.last_shot).total_seconds() <= self.weapons[0].reload_time:
+                        self.combat_mode = 'Reloading'
+                    else:
+                        if self.weapons[0].rounds_left_in_magazine == 0:
+                            self.weapons[0].rounds_left_in_magazine += self.weapons[0].magazine_size
+                            self.weapons[0].magazines_left -= 1
+
+                        if (datetime.now() - self.last_shot).total_seconds() <= self.weapons[0].cooldown:
+                            self.combat_mode = 'Weapon is Loading Next Round'
+                        elif self.movement_mode == 'Attack':
+                            self.combat_mode = 'Aiming'
+                        elif self.movement_mode == "Stationary":
+                            self.combat_mode = 'Ready'
+                        elif self.movement_mode == "Flee":
+                            self.combat_mode == "Panicking"
+
+                    if self.movement_mode == 'Attack' and self.combat_mode == 'Aiming':
+                        if len(self.weapons[0].projectile_pool) == 0:
+                            self.combat_mode = 'No Projectiles Pooled'
+                        elif self.target_enemy is not None:
+                            target = self.aim_shot(self.target_enemy)
+
+                            if target is not None:
+                                self.combat_mode = 'Shooting'
+                                self.last_shot = datetime.now()
+                                self.weapons[0].rounds_left_in_magazine -= 1
+                                self.shoot(target)
+                else:
+                    self.world.change_weapons(self)
+            else:
+                if self.movement_mode is not "Stationary":
+                    # print("Fugitive lost soldier. Sitting still.")
+                    self.sit_still()
+
+                # if self.fear > 0:
+                #     self.fear = max(0, self.fear - 5)
+        elif self.max_speed == self.max_speed_standard:
+            self.max_speed *= 1.25
+        
+        if self.movement_mode == "Attack":
+            if self.target_enemy is not None and self.target == self.box:
+                self.follow_target_enemy(delta)
+            else:
+                self.follow_graph_path(delta)
+        elif self.movement_mode == "Flee":
+            # print(self.name + ". Target: " + str(self.target.idx) + ". Current box:" + str(self.box.idx) + ".")
+            self.follow_graph_path(delta)
+
         self.update_heading()
         self.box = self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y))
 
+    def scared(self):
+        if self.movement_mode == "Flee":
+            return True
+
+        if self.last_fear_ping == None:
+            self.last_fear_ping = datetime.now()
+
+        if (datetime.now() - self.last_fear_ping).total_seconds() >= 1:
+            self.last_fear_ping = datetime.now()
+
+            if self.movement_mode == "Attack":
+                closest = None
+                closest_dist = 9999999999999999999999
+                
+                for soldier in self.world.soldiers:
+                    dist = self.distance(soldier.pos)
+
+                    if dist < closest_dist:
+                        closest = soldier
+                        closest_dist = dist
+
+                if closest is not None:
+                    self.fear += 1 * (self.awareness_radius / max(closest_dist, 0.001))
+            elif self.movement_mode == "Stationary" and self.fear > 0:
+                # print(self.name + " calming down")
+                self.fear = max(0, self.fear - 5)
+
+        if self.fear >= 50:
+            if self.movement_mode is not "Panicking":
+                self.movement_mode = "Panicking"
+                self.get_new_path()
+                # print("Now fleeing")
+
+            return True
+
+        return False
+
     def choose_weapon(self):
         if self.movement_mode == 'Exchange Weapons':
+            print("Can't choose weapon while exchanging weapons")
             return False
 
-        if len(self.weapons) <= 1:
+        if len(self.weapons) == 0:
+            print("No weapons. Exchanging weapons.")
             self.movement_mode = 'Exchange Weapons'
             return False
 
         weapon_0 = self.weapons[0]
-        weapon_1 = self.weapons[1]
+        # weapon_1 = self.weapons[1]
 
         weapon_0_ammo = weapon_0.rounds_left_in_magazine + weapon_0.magazine_size * weapon_0.magazines_left 
-        weapon_1_ammo = weapon_1.rounds_left_in_magazine + weapon_1.magazine_size * weapon_1.magazines_left
+        # weapon_1_ammo = weapon_1.rounds_left_in_magazine + weapon_1.magazine_size * weapon_1.magazines_left
 
         weapon_0_avg_dmg = weapon_0.damage * weapon_0.damage_factor
-        weapon_1_avg_dmg = weapon_1.damage * weapon_1.damage_factor
+        # weapon_1_avg_dmg = weapon_1.damage * weapon_1.damage_factor
 
         if self.target_enemy is not None:
             target_health = self.target_enemy.health
 
         # check if out of ammo
-        if weapon_0_ammo <= 0 and weapon_1_ammo <= 0:
+        if weapon_0_ammo <= 0: # and weapon_1_ammo <= 0:
+            print("No ammo. Changing weapons.")
             self.movement_mode = 'Exchange Weapons'
             return False
         # check if attacking or patrolling and have insufficient ammo to kill the target
-        elif self.target_enemy is not None and (self.movement_mode == 'Attack' or self.movement_mode == 'Patrol') and weapon_0_avg_dmg * weapon_0_ammo + weapon_1_avg_dmg * weapon_1_ammo < target_health:
+        elif self.target_enemy is not None and (self.movement_mode == 'Attack' or self.movement_mode == 'Patrol') and weapon_0_avg_dmg * weapon_0_ammo < target_health: # + weapon_1_avg_dmg * weapon_1_ammo < target_health:
+            print("Insufficient ammo to kill target. Changing weapons. Rounds / Magazine Size / Magazines: " + str(weapon_0.rounds_left_in_magazine) + "/" + str(weapon_0.magazine_size) + "/" + str(weapon_0.magazines_left) + ". Avg Total Damage / Enemy Health: " + str(weapon_0_avg_dmg * weapon_0_ammo) + "/" + str(target_health) + ".")
             self.movement_mode = 'Exchange Weapons'
             return False
         # check if patrolling and would theoretically have insufficient ammo to kill the target
-        elif self.target_enemy == None and self.movement_mode == 'Patrol' and weapon_0_avg_dmg * weapon_0_ammo + weapon_1_avg_dmg * weapon_1_ammo < self.start_health:
+        elif self.target_enemy == None and self.movement_mode == 'Patrol' and weapon_0_avg_dmg * weapon_0_ammo < self.start_health: # + weapon_1_avg_dmg * weapon_1_ammo < self.start_health:
+            print("Theoretically insufficient ammo to kill target. Changing weapons.")
             self.movement_mode = 'Exchange Weapons'
             return False            
 
-        # check if only current weapon is out of ammo
-        if weapon_0_ammo <= 0 and weapon_1_ammo > 0:
-            self.next_weapon()
-        # check if both weapons have ammo, if both weapons' probable damage dealt (accounting for explosive splash damage and multiple shotgun pellets vs fixed damage rifle and hand gun bullets)
-        # would be sufficient to kill the target, and the next weapon deals less damage
-        elif self.target_enemy is not None and weapon_0_ammo > 0 < weapon_1_ammo and weapon_0_avg_dmg > weapon_1_avg_dmg > target_health:
-            self.next_weapon()
+        # # check if only current weapon is out of ammo
+        # if weapon_0_ammo <= 0 and weapon_1_ammo > 0:
+        #     self.next_weapon()
+        # # check if both weapons have ammo, if both weapons' probable damage dealt (accounting for explosive splash damage and multiple shotgun pellets vs fixed damage rifle and hand gun bullets)
+        # # would be sufficient to kill the target, and the next weapon deals less damage
+        # elif self.target_enemy is not None and weapon_0_ammo > 0 < weapon_1_ammo and weapon_0_avg_dmg > weapon_1_avg_dmg > target_health:
+        #     self.next_weapon()
 
         return True
 
     def update_heading(self):
-        if self.current_node_pos is not None and self.pos is not None:
+        if self.movement_mode == "Stationary":
+            closest = None
+            closest_dist = 9999999999999999999999
+
+            for soldier in self.world.soldiers:
+                dist = self.distance(soldier.pos)
+
+                if dist < closest_dist:
+                    closest = soldier
+                    closest_dist = dist
+
+            if closest is not None:
+                self.heading = (closest.pos - self.pos).get_normalised()
+                self.side = self.heading.perp()
+
+        elif self.current_node_pos is not None and self.pos is not None:
             self.heading = (self.current_node_pos - self.pos).get_normalised()
             self.side = self.heading.perp()
 
-    # def move(self, delta):
-    #     force = Vector2D()
-
-    #     # disabled obstacle avoidance; hinders movement in this scenario
-    #     # if self.world.obstacles_enabled:
-    #     #     force += self.avoid_obstacles(self.world.obstacles)
-
-    #     if self.world.walls_enabled:
-    #         force += self.avoid_walls(self.world.walls) * 10
-
-    #     force += self.avoid_agents(self.world.agents)
-
-    #     if force.length() == 0:
-    #         force = self.calculate(delta)  
-
-    #     ## limit force
-    #     force.truncate(self.max_force)
-    #     self.force = force
-
-    #     # determine the new accelteration
-    #     self.accel = force * (1 / self.mass)  # not needed if mass = 1.0
-
-    #     # new velocity
-    #     self.vel += self.accel * delta
-    #     self.vel.truncate(self.max_speed)
-    
-    #     # update position
-    #     pos = self.pos
-    #     accel = self.accel
-    #     vel = self.vel
-    #     force = self.force
-    #     self.pos += self.vel * delta
-    
-    #     # update heading is non-zero velocity (moving)
-    #     if self.vel.lengthSq() > 0.00000001:
-    #         self.heading = self.vel.get_normalised()
-    #         self.side = self.heading.perp()
-    
-    #     # treat world as continuous space - wrap new position if needed
-    #     self.world.wrap_around(self.pos)
-
-    #     if self.collided():
-    #         self.pos = pos
-    #         self.accel = accel
-    #         self.vel = vel
-    #         self.force = force
-
-    #         # update heading is non-zero velocity (moving)
-    #         if self.vel.lengthSq() > 0.00000001:
-    #             self.heading = self.vel.get_normalised()
-    #             self.side = self.heading.perp()
-        
-    #         # treat world as continuous space - wrap new position if needed
-    #         self.world.wrap_around(self.pos)
-
-    # def calculate(self, delta):
-    #     # reset the steering force
-    #     agent_type = self.agent_type
-
-    #     if agent_type == 'target':
-    #         force = self.calculate_target(delta)
-    #     elif agent_type == 'shooter':
-    #         force = self.calculate_shooter(delta)
-    #     else:
-    #         force = Vector2D(0,0)
-
-    #     return force
-
-    # def calculate_fugitive(self, delta):
-    #     # if self.movement_mode == 'Wander' or self.world.shooter == None:
-    #     #     return self.wander(delta)
-    #     # elif self.movement_mode == 'Escape':
-    #     #     return self.avoid(self.world.shooter.pos)
-
-    #     # return Vector2D(0,0)
-
-    # def calculate_soldier(self, delta):
-    #     # if self.movement_mode == 'Get Food':
-    #     #     return self.arrive(self.world.food_station, 'slow')
-    #     # elif self.movement_mode == 'Exchange Weapons':
-    #     #     return self.arrive(self.world.ammo_station, 'slow')
-    #     # elif self.movement_mode == 'Patrol':
-    #     #     return self.follow_path()
-    #     # elif self.movement_mode == 'Attack' and self.world.obstacles_enabled:
-    #     #     return self.hunt(self.target_enemy, delta)
-    #     # elif self.movement_mode == 'Attack' or self.movement_mode == 'Resume Attack':
-    #     #     return self.seek(self.target_enemy.pos)
-
-    #     # return Vector2D(0,0)
-
     def render(self, color=None):
-        #render agent
         egi.set_stroke(2)
 
-        if self.path is not None and self.world.cfg['PATH_ON']:
-            egi.red_pen()
-            egi.line_by_pos(self.pos, self.current_node_box.get_vc("agent.render(), line from agent to box").copy())
-            path = self.path.path
-            for i in range(1,len(path)):
-                egi.line_by_pos(self.world.boxes[path[i-1]].get_vc("agent.render(), line from this to box").copy(), self.world.boxes[path[i]].get_vc("agent.render(), line from box to this").copy())
+        try:
+            if self.path is not None and self.world.cfg['PATH_ON']:
+                egi.red_pen()
+                egi.line_by_pos(self.pos, self.current_node_box.get_vc("agent.render(), line from agent to box").copy())
+                path = self.path.path
 
-            if self == self.world.soldiers[0]:
-                for i in range(0, len(path)):
-                    egi.circle(self.world.boxes[path[i]].get_vc("agent.render(), soldier leader path").copy(), 3)
+                for i in range(1,len(path)):
+                    egi.line_by_pos(self.world.boxes[path[i-1]].get_vc("agent.render(), line from this to box").copy(), self.world.boxes[path[i]].get_vc("agent.render(), line from box to this").copy())
+
+                if self == self.world.soldiers[0]:
+                    for i in range(0, len(path)):
+                        egi.circle(self.world.boxes[path[i]].get_vc("agent.render(), soldier leader path").copy(), 3)
+        except TypeError:
+            print("TypeError in agent.render()")
+        except:
+            print("Non-TypeError Error in agent.render()")
 
 
         if self.hit_time is not None:
             egi.red_pen()
-        else:
+        elif self.agent_type == "soldier":
+            egi.green_pen()
+        elif self.agent_type == "fugitive":
             egi.orange_pen()
+        else:
+            egi.grey_pen()
 
         if self.agent_type == 'fugitive':
+            # render fugitive
             egi.circle(self.pos, self.radius)
             egi.circle(self.pos, self.radius * 2 / 3)
             egi.circle(self.pos, self.radius / 3)
             egi.cross(self.pos, self.radius)
 
-            # render pacing markers
-            if self.movement_mode == 'Pacing':
-                egi.red_pen()
-                egi.cross(self.current_pt, 10)
-                egi.circle(self.current_pt, 10)
-                egi.cross(self.next_pt, 10)
+            # render weapon's effective range
+            if self.world.show_weapon_range:
+                egi.set_pen_color(name='AQUA')
+                egi.circle(self.pos, self.weapons[0].effective_range)
+
+            # render field of view
+            if self.world.show_awareness_range:
+                if self.movement_mode == 'Attack':
+                    egi.red_pen()
+                else:
+                    egi.yellow_pen()
+
+                egi.circle(self.awareness_pos, self.awareness_radius)
         elif self.agent_type == 'soldier':
-            # self.path.render()
+            # render soldier
             egi.circle(self.pos, self.radius)
 
             # render weapon's effective range
-            egi.set_pen_color(name='AQUA')
-            egi.circle(self.pos, self.weapons[0].effective_range)
+            if self.world.show_weapon_range:
+                egi.set_pen_color(name='AQUA')
+                egi.circle(self.pos, self.weapons[0].effective_range)
             
             # render field of view
-            if self.movement_mode == 'Attack':
-                egi.red_pen()
-            else:
-                egi.yellow_pen()
+            if self.world.show_awareness_range:
+                if self.movement_mode == 'Attack':
+                    egi.red_pen()
+                else:
+                    egi.yellow_pen()
 
-            egi.circle(self.awareness_pos, self.awareness_radius)
-
-            # if len(self.fov_markers) >= 6:
-            #     # render field of view
-            #     if self.movement_mode == 'Attack':
-            #         egi.red_pen()
-            #     else:
-            #         egi.orange_pen()
-
-            #     egi.circle(self.pos, self.hunt_dist)
-            #     egi.line(pos1=self.fov_markers[0], pos2=self.fov_markers[1])
-            #     egi.line(pos1=self.fov_markers[1], pos2=self.fov_markers[5])
-            #     egi.line(pos1=self.fov_markers[5], pos2=self.fov_markers[4])
+                egi.circle(self.awareness_pos, self.awareness_radius)
         else:
             egi.circle(self.pos, self.radius)
 
         # render obstacle avoidance
-        if self.show_avoidance:
-            if self.obst_detected:
-                egi.set_pen_color(name='RED')
-            else:
-                egi.set_pen_color(name='LIGHT_BLUE')
+        # if self.show_avoidance:
+        #     if self.obst_detected:
+        #         egi.set_pen_color(name='RED')
+        #     else:
+        #         egi.set_pen_color(name='LIGHT_BLUE')
 
-            egi.circle(self.pos, self.avoid_radius)
+        #     egi.circle(self.pos, self.avoid_radius)
 
-            if self.sensor_obst_detected:
-                egi.set_pen_color(name='RED')
-            else:
-                egi.set_pen_color(name='LIGHT_BLUE')
+        #     if self.sensor_obst_detected:
+        #         egi.set_pen_color(name='RED')
+        #     else:
+        #         egi.set_pen_color(name='LIGHT_BLUE')
 
-            egi.circle(self.sensor_pos, self.avoid_radius)
+        #     egi.circle(self.sensor_pos, self.avoid_radius)
 
         # add some handy debug drawing info lines - force and velocity
         if self.show_info:
@@ -688,28 +698,71 @@ class Agent(object):
             return self.avoid(hunter_pos)
 
     def follow_graph_path(self, delta):
-        self.following_enemy = False
+        try:
+            self.following_enemy = False
 
-        if self.path is None or len(self.path.path) is 0 or self.current_node_pos is None or self.current_node_box is None:
-            print("follow graph path called get new path")
-            self.get_new_path()
-
-        path = self.path.path
-
-        to_current_node = (self.current_node_pos - self.pos).normalise() * self.max_speed * delta
-
-        self.pos.x = self.pos.x + (to_current_node.x * self.world.scale_vector.x)
-        self.pos.y = self.pos.y + (to_current_node.y * self.world.scale_vector.y)
-
-        if self.distance(self.current_node_pos) < self.radius * 0.5:
-            if len(path) > 1:
-                path.remove(path[0])
-                self.last_node_box = self.current_node_box
-                self.last_new_node_time = datetime.now()
-                self.current_node_box = self.world.boxes[path[0]]
-                self.current_node_pos = self.current_node_box.get_vc("agent.follow_graph_path() 2").copy() 
-            else:
+            if self.path is None or len(self.path.path) is 0 or self.current_node_pos is None or self.current_node_box is None:
+                print("follow graph path called get new path")
                 self.get_new_path()
+
+            to_current_node = (self.current_node_pos - self.pos).normalise() * self.max_speed * delta
+
+            # if to_current_node.length() > self.distance(self.current_node_pos):
+            #     to_current_node = to_current_node.normalise() * self.distance(self.current_node_pos)
+
+            pos = Vector2D(self.pos.x + (to_current_node.x * self.world.scale_vector.x), self.pos.y + (to_current_node.y * self.world.scale_vector.y))
+
+            if self.agent_type == "soldier" and self is not self.world.soldiers[0]:
+                i = 0
+
+                while i in range(0, len(self.world.soldiers)):
+                    soldier = self.world.soldiers[i]
+
+                    if soldier == self:
+                        i = len(self.world.soldiers)
+                    elif soldier.distance(pos) < self.radius + soldier.radius:
+                        return
+                    else:
+                        i += 1
+            elif self.agent_type == "fugitive" and self is not self.world.fugitives[0]:
+                i = 0
+
+                while i in range(0, len(self.world.fugitives)):
+                    fugitive = self.world.fugitives[i]
+
+                    if fugitive == self:
+                        i = len(self.world.fugitives)
+                    elif fugitive.distance(pos) < self.radius + fugitive.radius:
+                        if self.movement_mode == "Flee":
+                            # print("Fleeing fugitive calmed down by friend")
+                            self.sit_still()
+                        return
+                    else:
+                        i += 1
+
+            for wall in self.world.walls:
+                if (pos - wall.get_vc("agent.follow_graph_path() 1")).length() < self.radius + wall.radius:
+                    return
+            
+            self.pos = pos
+            path = self.path.path
+
+            if self.distance(self.current_node_pos) < self.radius * 0.5:
+                if len(path) > 1:
+                    path.remove(path[0])
+                    self.last_node_box = self.current_node_box
+                    self.last_new_node_time = datetime.now()
+                    self.current_node_box = self.world.boxes[path[0]]
+                    self.current_node_pos = self.current_node_box.get_vc("agent.follow_graph_path() 2").copy() 
+                elif self.movement_mode == "Flee":
+                    # print("Fleeing fugitive reached end of fleeing path. Sitting still.")
+                    self.sit_still()
+                else:
+                    self.get_new_path()
+        except TypeError:
+            print("TypeError exception in agent.follow_path()")
+        except:
+            print("Unknown exception in agent.follow_path()")
 
     def follow_path(self):
         if self.path.current_pt() is self.path.end_pt():
@@ -728,9 +781,13 @@ class Agent(object):
     def follow_target_enemy(self, delta):
         self.following_enemy = True
         to_target_enemy = (self.target_enemy.pos - self.pos).normalise() * self.max_speed * delta
+        pos = Vector2D(self.pos.x + (to_target_enemy.x * self.world.scale_vector.x), self.pos.y + (to_target_enemy.y * self.world.scale_vector.y))
 
-        self.pos.x = self.pos.x + (to_target_enemy.x * self.world.scale_vector.x)
-        self.pos.y = self.pos.y + (to_target_enemy.y * self.world.scale_vector.y)
+        for wall in self.world.walls:
+            if (pos - wall.get_vc("agent.follow_target_enemy()")).length() < self.radius + wall.radius:
+                return
+
+        self.pos = pos
 
     def hide(self, hunter, hiding_spots, delta):
         self.best_hiding_spot = None        
@@ -819,6 +876,19 @@ class Agent(object):
         ''' move towards target position '''
         desired_vel = (target_pos - self.pos).normalise() * self.max_speed
         return (desired_vel - self.vel)
+
+    def sit_still(self):
+        # print("Sitting still.")
+        if self.target in self.world.targets:
+            self.world.targets.remove(self.target)
+
+        self.target = None
+        self.path = None
+        # self.current_node_pos = None
+        # self.current_node_box = None
+        self.movement_mode = "Stationary"
+        self.fear = 45
+        # self.get_new_path()
 
     def wander(self, delta):
         self.wandering = True
@@ -920,7 +990,7 @@ class Agent(object):
         total_dist += dist
         result[0] = {"box": target.current_node_box, "dist": total_dist}
 
-        if target.path is not None:
+        if target.path is not None and len(target.path.path) > 0:
             path = target.path.path
 
             # current node to first node in path
@@ -928,11 +998,12 @@ class Agent(object):
             total_dist += dist
             result[1] = {"box": boxes[path[0]], "dist": total_dist}
 
-            # first node in path to last node in path
-            for i in range(1, len(path)):
-                dist = (boxes[path[i]].get_vc("agent.get_target_path_measurements(), path nodes, " + str(i)) - boxes[path[i-1]].get_vc("agent.get_target_path_measurements(), path nodes, " + str(i-1))).length()
-                total_dist += dist
-                result[i+1] = {"box": boxes[path[i]], "dist": total_dist}
+            if len(path) > 1:
+                # first node in path to last node in path
+                for i in range(1, len(path)):
+                    dist = (boxes[path[i]].get_vc("agent.get_target_path_measurements(), path nodes, " + str(i)) - boxes[path[i-1]].get_vc("agent.get_target_path_measurements(), path nodes, " + str(i-1))).length()
+                    total_dist += dist
+                    result[i+1] = {"box": boxes[path[i]], "dist": total_dist}
 
         return result
 
@@ -993,7 +1064,7 @@ class Agent(object):
 
             loop -= 1
 
-        self.hunger += self.weapons[0].stamina_drain
+        # self.hunger += self.weapons[0].stamina_drain
 
     # Additional assistive methods used by Agent --------------------------------------------------
 
@@ -1018,6 +1089,21 @@ class Agent(object):
         to_target = target_pos - self.pos
         dist = to_target.length()
         return dist
+
+    def enemy_in_range(self, enemy):
+        if enemy.distance(self.awareness_pos) >= self.awareness_radius + enemy.radius:
+            return False
+
+        path_to_enemy = self.calculate_path(search_modes[self.world.window.search_mode], enemy.box, self.world.window.limit)
+
+        if path_to_enemy is None:
+            return False
+
+        for box_index in path_to_enemy.path:
+            if (self.awareness_pos - self.world.boxes[box_index].get_vc("agent.path_to_enemy_in_range()")).length() >= self.awareness_radius + enemy.radius:
+                return False
+
+        return True
 
     def get_best_hiding_spot(self, spots, hunter):
         # sort and / or rank the hiding spots
@@ -1074,7 +1160,7 @@ class Agent(object):
                     print(self.agent_type + " getting attacking path")
                     self.target = self.target_enemy.box
                 else:
-                    self.movement_mode == "Patrol"
+                    self.movement_mode = "Patrol"
 
             if self.movement_mode == "Patrol":
                 if self == self.world.soldiers[0]:
@@ -1086,18 +1172,33 @@ class Agent(object):
                     print(self.agent_type + " getting trooper path")
                     self.target = self.world.soldiers[0].target
         elif self.agent_type == "fugitive":
-            print(self.agent_type + " getting wandering path")
-            target = self.world.boxes[randrange(0, len(self.world.boxes))]
-
-            while target.kind == "X" or target == self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y)):
+            if self.movement_mode == "Attack":
+                if self.target_enemy is not None:
+                    print(self.agent_type + " getting attacking path")
+                    self.target = self.target_enemy.box
+                else:
+                    self.movement_mode = "Stationary"
+            elif self.movement_mode == "Panicking":
                 target = self.world.boxes[randrange(0, len(self.world.boxes))]
-               
-            self.target = target
+
+                while not self.suitable_fleeing_location(target):
+                    target = self.world.boxes[randrange(0, len(self.world.boxes))]
+                   
+                self.target = target
+                self.movement_mode = "Flee"
+            elif self.movement_mode == "Flee":
+                # print("Fugitive finished fleeing. Now sitting still.")
+                self.sit_still()
+                return
+            elif self.movement_mode == "Stationary":
+                # print("fugitive is stationary")
+                return
         else:
             print("Error: Invalid agent type submitted to agent.get_new_path(). " + self.agent_type + " defaulting to wandering.")
             target = self.world.boxes[randrange(0, len(self.world.boxes))]
 
-            while target.kind == "X" or target == self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y)):
+            # while target.kind == "X" or target == self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y)):
+            while target.kind == "X" or target == self.box:
                 target = self.world.boxes[randrange(0, len(self.world.boxes))]
                
             self.target = target
@@ -1210,19 +1311,23 @@ class Agent(object):
                 self.see_target = True
                 return
 
-    def next_weapon(self):
-        # if len(self.weapons) < 1:
-        #     self.world.change_weapons(self)
+    # def next_weapon(self):
+    #     # if len(self.weapons) < 1:
+    #     #     self.world.change_weapons(self)
 
-        temp = self.weapons[0]
-        self.weapons[0] = self.weapons[1]
-        self.weapons[1] = temp
+    #     temp = self.weapons[0]
+    #     self.weapons[0] = self.weapons[1]
+    #     self.weapons[1] = temp
 
-        self.last_shot = datetime.now()
+    #     self.last_shot = datetime.now()
 
     def calculate_path(self, search, target_box, limit):
         cls = SEARCHES[search]
-        return cls(self.world.graph, self.box.idx, target_box.idx, limit)
+
+        if target_box == None:
+            return None
+        else:
+            return cls(self.world.graph, self.box.idx, target_box.idx, limit)
 
     def plan_path(self, search, limit):
         '''Conduct a nav-graph search from the current world start node to the
@@ -1263,6 +1368,20 @@ class Agent(object):
 
     def speed(self):
         return self.vel.length()
+
+    def suitable_fleeing_location(self, target):
+        if target.kind == "X":
+            return False
+
+        for agent in self.world.agents:
+            if agent.agent_type == "soldier":
+                if (target.get_vc("agent.suitable_fleeing_location()") - agent.awareness_pos).length() < agent.awareness_radius * 3:
+                    return False
+            else:
+                if target == agent.box:
+                    return False
+
+        return True
 
     def update_fov(self, walls, agents):
         crossed_obj = False

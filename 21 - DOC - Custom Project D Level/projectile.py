@@ -127,7 +127,8 @@ class Projectile(object):
 
         if len(self.world.agents) > 0:
             for agent in self.world.agents:
-                if (self.left_barrel or agent is not self.owner_on_firing) and self.distance(agent.pos) < self.radius + agent.radius:
+                # if (self.left_barrel or agent is not self.owner_on_firing) and self.distance(agent.pos) < self.radius + agent.radius:
+                if agent is not None and self.owner_on_firing is not None and agent.agent_type is not self.owner_on_firing.agent_type and self.distance(agent.pos) < self.radius + agent.radius:
                     collided.append(agent)
 
         for wall in self.world.walls:

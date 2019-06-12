@@ -274,6 +274,9 @@ class BoxWorld(object):
         self.current_waypoint = 0 # the next waypoint in the patrol of the soldier agents
         self.current_waypoint = 9 # the previous waypoint in the patrol of the soldier agents
 
+        self.show_awareness_range = False
+        self.show_weapon_range = False
+
         i = 0
 
         while i < 10:
@@ -319,15 +322,15 @@ class BoxWorld(object):
         return walls    
 
     def set_agents(self):
-        self.soldiers.append(Agent(world=self, agent_type="soldier", box=62))
-        # self.soldiers.append(Agent(world=self, agent_type="soldier", box=60))
-        # self.soldiers.append(Agent(world=self, agent_type="soldier", box=2))
-        # self.soldiers.append(Agent(world=self, agent_type="soldier", box=0))
+        self.soldiers.append(Agent(world=self, agent_type="soldier", box=62, name="Soldier A"))
+        self.soldiers.append(Agent(world=self, agent_type="soldier", box=60, name="Soldier B"))
+        self.soldiers.append(Agent(world=self, agent_type="soldier", box=2, name="Soldier C"))
+        self.soldiers.append(Agent(world=self, agent_type="soldier", box=0, name="Soldier D"))
 
-        self.fugitives.append(Agent(world=self))
-        self.fugitives.append(Agent(world=self))
-        self.fugitives.append(Agent(world=self))
-        self.fugitives.append(Agent(world=self))
+        self.fugitives.append(Agent(world=self, name="Fugitive A"))
+        self.fugitives.append(Agent(world=self, name="Fugitive B"))
+        self.fugitives.append(Agent(world=self, name="Fugitive C"))
+        self.fugitives.append(Agent(world=self, name="Fugitive D"))
 
         for soldier in self.soldiers:
             self.agents.append(soldier)
@@ -365,7 +368,7 @@ class BoxWorld(object):
             damage_factor = 1,
             reload_time = 2.6, 
             magazine_size = 4, 
-            magazines = 1,#6, 
+            magazines = 1000000000,#6, 
             accuracy_modifier = 0,
             stamina_drain=4))
         # self.weapons.append(Weapon(
@@ -378,7 +381,7 @@ class BoxWorld(object):
         #     damage_factor = 20,
         #     reload_time = 3, 
         #     magazine_size = 2, 
-        #     magazines = 1,#4, 
+        #     magazines = 1000000000,#4, 
         #     accuracy_modifier = 0,
         #     stamina_drain=5)) 
         self.weapons.append(Weapon(
@@ -391,7 +394,7 @@ class BoxWorld(object):
             damage_factor = 1,
             reload_time = 1.8, 
             magazine_size = 12, 
-            magazines = 1,#10, 
+            magazines = 1000000000,#10, 
             accuracy_modifier = 5,
             stamina_drain=2))
         # self.weapons.append(Weapon(
@@ -404,7 +407,7 @@ class BoxWorld(object):
         #     damage_factor = 20,
         #     reload_time = 2, 
         #     magazine_size = 8, 
-        #     magazines = 1,#2, 
+        #     magazines = 1000000000,#2, 
         #     accuracy_modifier = 5,
         #     stamina_drain=1))
         self.weapons.append(Weapon(
@@ -417,7 +420,7 @@ class BoxWorld(object):
             damage_factor = 3,
             reload_time = 6, 
             magazine_size = 12, 
-            magazines = 1,#5, 
+            magazines = 1000000000,#5, 
             accuracy_modifier = 5,
             stamina_drain=3))
 
@@ -666,9 +669,9 @@ class BoxWorld(object):
 
         soldier.weapons = []
         
-        while len(soldier.weapons) < 2 and len(available) > 0:
+        while len(soldier.weapons) < 1 and len(available) > 0:
             if len(available) > 1:
-                weapon = available[randrange(0, len(available) - 1)]
+                weapon = available[randrange(0, len(available))]
             else:
                 weapon = available[0]
 
@@ -698,15 +701,15 @@ class BoxWorld(object):
         weapon.rounds_left_in_magazine = 0
 
         if weapon.name == 'Rifle':
-            weapon.magazines_left = 1#6
+            weapon.magazines_left = 1000000000#6
         elif weapon.name == 'Rocket':
-            weapon.magazines_left = 1#4
+            weapon.magazines_left = 1000000000#4
         elif weapon.name == 'Hand Gun':
-            weapon.magazines_left = 1#10
+            weapon.magazines_left = 1000000000#10
         elif weapon.name == 'Hand Grenade':
-            weapon.magazines_left = 1#2
+            weapon.magazines_left = 1000000000#2
         elif weapon.name == 'Shotgun':
-            weapon.magazines_left = 1#5
+            weapon.magazines_left = 1000000000#5
 
     # Utility Methods: Transforming Points-----------------------------------------------------------------------------------------------------------
 
