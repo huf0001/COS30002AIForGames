@@ -149,6 +149,7 @@ class Agent(object):
         self.target = None
         self.target_enemy = None
         self.following_enemy = False
+        self.target_ally = None
 
         self.last_new_node_time = None
 
@@ -176,8 +177,10 @@ class Agent(object):
         self.awareness_pos = self.world.transform_point(self.awareness_pos, self.pos, self.heading, self.side)
         self.look(self.world.agents)
 
+        # select movement mode
         if self.see_target:
             self.movement_mode = "Attack"
+            self.target_ally = None
 
             if self.target_enemy == None or self.target_enemy.distance(self.pos) > self.awareness_radius + self.target_enemy.radius:
                 self.target_enemy = None
@@ -190,63 +193,75 @@ class Agent(object):
 
             if self.target_enemy is not None and self.target_enemy.box is not self.target:
                 self.get_new_path()
+        elif self.ally_attacking():
+            self.movement_mode = "Assist"
 
-            if self.choose_weapon():
-                # set movement mode
-                if self.see_target:
-                    self.movement_mode = 'Attack'
+            if self.target_ally == None:
+                for agent in self.world.agents:
+                    if agent.agent_type is not self.agent_type and (self.target_ally == None or self.distance(self.target_ally.pos) > self.distance(agent.pos)):
+                        self.target_ally = agent
 
-                    if self.last_aware_time is not None:
-                        self.last_aware_time = None
-                elif self.last_aware_time == None:
-                    self.movement_mode = 'Patrol'
-                elif (datetime.now() - self.last_aware_time).total_seconds() > 10:
-                    self.last_aware_time = None
-                    self.movement_mode = 'Patrol'
-                else:
-                    self.movement_mode = 'Resume Attack'
-
-                # set combat mode and handle reloading
-                if self.weapons[0].rounds_left_in_magazine == 0 and (datetime.now() - self.last_shot).total_seconds() <= self.weapons[0].reload_time:
-                    self.combat_mode = 'Reloading'
-                else:
-                    if self.weapons[0].rounds_left_in_magazine == 0:
-                        self.weapons[0].rounds_left_in_magazine += self.weapons[0].magazine_size
-                        self.weapons[0].magazines_left -= 1
-
-                    if (datetime.now() - self.last_shot).total_seconds() <= self.weapons[0].cooldown:
-                        self.combat_mode = 'Weapon is Loading Next Round'
-                    elif self.movement_mode == 'Attack':
-                        self.combat_mode = 'Aiming'
-                    elif self.movement_mode == 'Patrol':
-                        self.combat_mode = 'Ready'
-
-                # aim and shoot
-                if self.movement_mode == 'Attack' and self.combat_mode == 'Aiming':
-                    if len(self.weapons[0].projectile_pool) == 0:
-                        self.combat_mode = 'No Projectiles Pooled'
-                    elif self.target_enemy is not None:
-                        target = self.aim_shot(self.target_enemy)
-
-                        if target is not None:
-                            self.combat_mode = 'Shooting'
-                            self.last_shot = datetime.now()
-                            self.weapons[0].rounds_left_in_magazine -= 1
-                            self.shoot(target)
-            else:
-                self.world.change_weapons(self)
+            if self.target_ally is not None and self.target_ally.box is not self.target:
+                self.get_new_path()
         else:
-            if self.movement_mode is not "Patrol":
-                self.movement_mode = "Patrol"
+            self.movement_mode = "Patrol"
 
-            if self.max_speed is not self.max_speed_standard:
-                self.max_speed = self.max_speed_standard
+        if self.choose_weapon():
+            # # set movement mode
+            # if self.see_target:
+            #     self.movement_mode = 'Attack'
+
+            #     # if self.last_aware_time is not None:
+            #     #     self.last_aware_time = None
+            # elif self.ally_attacking():
+            #     self.movement_mode = "Assist"
+            # else:
+            #     self.movement_mode = "Patrol"
+            # # elif self.last_aware_time == None:
+            # #     self.movement_mode = 'Patrol'
+            # # elif (datetime.now() - self.last_aware_time).total_seconds() > 10:
+            # #     self.last_aware_time = None
+            # #     self.movement_mode = 'Patrol'
+            # # else:
+            # #     self.movement_mode = 'Resume Attack'
+
+            # set combat mode and handle reloading
+            if self.weapons[0].rounds_left_in_magazine == 0 and (datetime.now() - self.last_shot).total_seconds() <= self.weapons[0].reload_time:
+                self.combat_mode = 'Reloading'
+            else:
+                if self.weapons[0].rounds_left_in_magazine == 0:
+                    self.weapons[0].rounds_left_in_magazine += self.weapons[0].magazine_size
+                    self.weapons[0].magazines_left -= 1
+
+                if (datetime.now() - self.last_shot).total_seconds() <= self.weapons[0].cooldown:
+                    self.combat_mode = 'Weapon is Loading Next Round'
+                elif self.movement_mode == 'Attack':
+                    self.combat_mode = 'Aiming'
+                elif self.movement_mode == 'Patrol' or self.movement_mode == "Assist":
+                    self.combat_mode = 'Ready'
+
+            # aim and shoot
+            if self.movement_mode == 'Attack' and self.combat_mode == 'Aiming':
+                if len(self.weapons[0].projectile_pool) == 0:
+                    self.combat_mode = 'No Projectiles Pooled'
+                elif self.target_enemy is not None:
+                    target = self.aim_shot(self.target_enemy)
+
+                    if target is not None:
+                        self.combat_mode = 'Shooting'
+                        self.last_shot = datetime.now()
+                        self.weapons[0].rounds_left_in_magazine -= 1
+                        self.shoot(target)
+        else:
+            self.world.change_weapons(self)
         
         if self.movement_mode == "Attack":
             if self.target_enemy is not None and self.target == self.box:
                 self.follow_target_enemy(delta)
             else:
                 self.follow_graph_path(delta)
+        elif self.movement_mode == "Assist":
+            self.follow_graph_path(delta)
         elif self.movement_mode == "Patrol":
             if (self is not self.world.soldiers[0] and self.target is not self.world.soldiers[0].target) or (self == self.world.soldiers[0] and self.target not in self.world.waypoints[self.world.current_waypoint].nodes):
                 self.get_new_path()
@@ -255,9 +270,6 @@ class Agent(object):
 
         self.update_heading()
         self.box = self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y))
-
-        # if self == self.world.soldiers[0] and self.box.waypoint is not None and self.movement_mode is not "Patrol":
-        #     self.world.update_waypoint(self.box.waypoint)
 
     def update_fugitive(self, delta):
         # check if died
@@ -277,9 +289,6 @@ class Agent(object):
         if not self.scared():
             if self.see_target:
                 self.movement_mode = "Attack"
-
-                if self.max_speed == self.max_speed_standard:
-                    self.max_speed *= 1.25
 
                 if self.target_enemy == None or self.target_enemy.distance(self.pos) > self.awareness_radius + self.target_enemy.radius:
                     self.target_enemy = None
@@ -332,9 +341,6 @@ class Agent(object):
                 if self.movement_mode is not "Stationary":
                     # print("Fugitive lost soldier. Sitting still.")
                     self.sit_still()
-
-                # if self.fear > 0:
-                #     self.fear = max(0, self.fear - 5)
         elif self.max_speed == self.max_speed_standard:
             self.max_speed *= 1.25
         
@@ -350,41 +356,12 @@ class Agent(object):
         self.update_heading()
         self.box = self.world.get_box_by_pos(int(self.pos.x), int(self.pos.y))
 
-    def scared(self):
-        if self.movement_mode == "Flee":
-            return True
+    def ally_attacking(self):
+        for soldier in self.world.soldiers:
+            if soldier is not self and soldier.movement_mode == "Attack":
+                return True
 
-        if self.last_fear_ping == None:
-            self.last_fear_ping = datetime.now()
-
-        if (datetime.now() - self.last_fear_ping).total_seconds() >= 1:
-            self.last_fear_ping = datetime.now()
-
-            if self.movement_mode == "Attack":
-                closest = None
-                closest_dist = 9999999999999999999999
-                
-                for soldier in self.world.soldiers:
-                    dist = self.distance(soldier.pos)
-
-                    if dist < closest_dist:
-                        closest = soldier
-                        closest_dist = dist
-
-                if closest is not None:
-                    self.fear += 1 * (self.awareness_radius / max(closest_dist, 0.001))
-            elif self.movement_mode == "Stationary" and self.fear > 0:
-                # print(self.name + " calming down")
-                self.fear = max(0, self.fear - 5)
-
-        if self.fear >= 50:
-            if self.movement_mode is not "Panicking":
-                self.movement_mode = "Panicking"
-                self.get_new_path()
-                # print("Now fleeing")
-
-            return True
-
+        self.target_ally = None
         return False
 
     def choose_weapon(self):
@@ -434,6 +411,43 @@ class Agent(object):
         #     self.next_weapon()
 
         return True
+
+    def scared(self):
+        if self.movement_mode == "Flee":
+            return True
+
+        if self.last_fear_ping == None:
+            self.last_fear_ping = datetime.now()
+
+        if (datetime.now() - self.last_fear_ping).total_seconds() >= 1:
+            self.last_fear_ping = datetime.now()
+
+            if self.movement_mode == "Attack":
+                closest = None
+                closest_dist = 9999999999999999999999
+                
+                for soldier in self.world.soldiers:
+                    dist = self.distance(soldier.pos)
+
+                    if dist < closest_dist:
+                        closest = soldier
+                        closest_dist = dist
+
+                if closest is not None:
+                    self.fear += 1 * (self.awareness_radius / max(closest_dist, 0.001))
+            elif self.movement_mode == "Stationary" and self.fear > 0:
+                # print(self.name + " calming down")
+                self.fear = max(0, self.fear - 5)
+
+        if self.fear >= 50:
+            if self.movement_mode is not "Panicking":
+                self.movement_mode = "Panicking"
+                self.get_new_path()
+                # print("Now fleeing")
+
+            return True
+
+        return False
 
     def update_heading(self):
         if self.movement_mode == "Stationary":
@@ -882,6 +896,9 @@ class Agent(object):
         if self.target in self.world.targets:
             self.world.targets.remove(self.target)
 
+        if self.max_speed is not self.max_speed_standard:
+            self.max_speed_standard = self.max_speed_standard
+
         self.target = None
         self.path = None
         # self.current_node_pos = None
@@ -1161,7 +1178,13 @@ class Agent(object):
                     self.target = self.target_enemy.box
                 else:
                     self.movement_mode = "Patrol"
-
+            elif self.movement_mode == "Assist":
+                if self.target_ally is not None:
+                    print(self.agent_type + " getting assistive path")
+                    self.target = self.target_ally.box
+                else:
+                    self.movement_mode = "Patrol"
+            
             if self.movement_mode == "Patrol":
                 if self == self.world.soldiers[0]:
                     print(self.agent_type + " getting commander path")
@@ -1334,22 +1357,25 @@ class Agent(object):
         current target node, using a search method that matches the string
         specified in `search`.
         '''
-        cls = SEARCHES[search]
-        self.path = cls(self.world.graph, self.box.idx, self.target.idx, limit)
+        try:
+            cls = SEARCHES[search]
+            self.path = cls(self.world.graph, self.box.idx, self.target.idx, limit)
 
-        if len(self.path.path) > 0:
-            path = self.path.path
-            boxes = self.world.boxes
-            self.last_node_box = self.current_node_box
-            self.current_node_box = self.world.boxes[path[0]]
-            self.current_node_pos = self.current_node_box.get_vc("agent.plan_path() 1").copy()
-
-            if len(self.path.path) > 1 and self.distance(boxes[path[1]].get_vc("agent.plan_path() 2").copy()) < (boxes[path[0]].get_vc("agent.plan_path() 3").copy() - boxes[path[1]].get_vc("agent.plan_path() 4").copy()).length():
-                path.remove(path[0])
+            if len(self.path.path) > 0:
+                path = self.path.path
+                boxes = self.world.boxes
                 self.last_node_box = self.current_node_box
-                self.last_new_node_time = datetime.now()
-                self.current_node_box = boxes[path[0]]
-                self.current_node_pos = self.current_node_box.get_vc("agent.follow_graph_path()").copy() 
+                self.current_node_box = self.world.boxes[path[0]]
+                self.current_node_pos = self.current_node_box.get_vc("agent.plan_path() 1").copy()
+
+                if len(self.path.path) > 1 and self.distance(boxes[path[1]].get_vc("agent.plan_path() 2").copy()) < (boxes[path[0]].get_vc("agent.plan_path() 3").copy() - boxes[path[1]].get_vc("agent.plan_path() 4").copy()).length():
+                    path.remove(path[0])
+                    self.last_node_box = self.current_node_box
+                    self.last_new_node_time = datetime.now()
+                    self.current_node_box = boxes[path[0]]
+                    self.current_node_pos = self.current_node_box.get_vc("agent.follow_graph_path()").copy() 
+        except:
+            print("Error in running agent.plan_path()")
 
     def position_in_random_box(self):
         self.box = self.world.boxes[randrange(0, len(self.world.boxes))]

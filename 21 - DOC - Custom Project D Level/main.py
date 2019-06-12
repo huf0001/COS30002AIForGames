@@ -79,7 +79,8 @@ class BoxWorldWindow(pyglet.window.Window):
             'mouse':  Label('', x=5, y=self.height-20, color=clBlack),
             'search': Label('', x=105, y=self.height-20, color=clBlack),
             'status': Label('', x=225, y=self.height-20, color=clBlack),
-            'editing': Label('', x=400, y=self.height-20, color=clBlack)
+            'menu': Label('', x=400, y=self.height-20, color=clBlack),
+            'editing': Label('', x=650, y=self.height-20, color=clBlack)
         }
         self._update_label()
 
@@ -100,6 +101,8 @@ class BoxWorldWindow(pyglet.window.Window):
             self.labels['search'].text = 'Search: '+ search_modes[self.search_mode]
         if key == 'status' or key is None:
             self.labels['status'].text = 'Status: '+ text
+        if key == 'menu' or key is None:
+            self.labels['menu'].text = "Menu: " + self.world.current_menu
         if key == 'editing' or key is None:
             self.labels['editing'].text = 'Editing: ' + str(self.world.active_waypoint)
 
@@ -116,13 +119,9 @@ class BoxWorldWindow(pyglet.window.Window):
         def on_mouse_press(x, y, button, modifiers):
             if button == 1: # left
                 box = self.world.get_box_by_pos(x,y)
+
                 if box:
-                    if self.world.editing_waypoints:
-                        self.world.edit_waypoint_node(box)
-                        self.world.reset_navgraph()
-                        self.plan_path()
-                        self._update_label('editing','graph changed')
-                    else:
+                    if self.world.current_menu == "Editing Boxes":
                         for agent in self.world.agents:
                             if box == self.world.get_box_by_pos(int(agent.pos.x), int(agent.pos.y)):
                                 print("Illegal change. That box has agents in it. Try again when they've all moved to new boxes.")
@@ -142,16 +141,22 @@ class BoxWorldWindow(pyglet.window.Window):
                         self.world.reset_navgraph()
                         self.plan_path()
                         self._update_label('status','graph changed')
-
+                    elif self.world.current_menu == "Spawning Fugitives":
+                        self.world.spawn_new_fugitive(box)
+                    elif self.world.current_menu == "Editing Waypoints":
+                        self.world.edit_waypoint_node(box)
+                        self.world.reset_navgraph()
+                        self.plan_path()
 
         @self.event
         def on_key_press(symbol, modifiers):
             # mode change?
-            if not self.world.editing_waypoints and symbol in self.mouse_modes:
+            if self.world.current_menu == "Editing Boxes" and symbol in self.mouse_modes:
                 self.mouse_mode = self.mouse_modes[symbol]
                 self._update_label('mouse')
-            elif self.world.editing_waypoints and symbol in self.waypoint_indexes:
+            elif self.world.current_menu == "Editing Waypoints" and symbol in self.waypoint_indexes:
                 self.world.active_waypoint = self.waypoint_indexes[symbol]
+                self._update_label('editing')
             # Change search mode? (Algorithm)
             elif symbol == key.M:
                 self.search_mode += 1
@@ -167,7 +172,8 @@ class BoxWorldWindow(pyglet.window.Window):
                 self._update_label('search')
             # Plan a path using the current search mode?
             elif symbol == key.SPACE:
-                self.world.editing_waypoints = not self.world.editing_waypoints
+                self.world.increment_menu()
+                self._update_label('menu')
             elif symbol == key.A:
                 self.world.show_awareness_range = not self.world.show_awareness_range
             elif symbol == key.E:

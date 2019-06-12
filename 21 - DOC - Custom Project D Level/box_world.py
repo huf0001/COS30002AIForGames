@@ -269,13 +269,16 @@ class BoxWorld(object):
         self.paused = False
         self.window = None
         self.cfg = cfg
-        self.editing_waypoints = False
         self.active_waypoint = 0 # currently being edited
         self.current_waypoint = 0 # the next waypoint in the patrol of the soldier agents
         self.current_waypoint = 9 # the previous waypoint in the patrol of the soldier agents
 
         self.show_awareness_range = False
         self.show_weapon_range = False
+        self.extra_fugitive_count = 0
+
+        self.current_menu = "Editing Boxes"
+        self.current_menu_index = 0
 
         i = 0
 
@@ -340,7 +343,6 @@ class BoxWorld(object):
 
         self.soldiers[0].target = self.waypoints[0].nodes[0]
         self.soldiers[0].plan_path(search_modes[self.window.search_mode], self.window.limit)
-        # pass
 
     def set_waypoints(self):
         i = 0
@@ -443,7 +445,7 @@ class BoxWorld(object):
         for box in self.boxes:
             box.draw()
 
-        if self.editing_waypoints:
+        if self.current_menu == "Editing Waypoints":
             for waypoint in self.waypoints:
                 if waypoint.index == self.active_waypoint:
                     egi.green_pen()
@@ -504,6 +506,21 @@ class BoxWorld(object):
             projectile.render()
 
     # Triggered Methods------------------------------------------------------------------------------------------------------------------------------
+
+    def increment_menu(self):
+        self.current_menu_index += 1
+
+        if self.current_menu_index >= 3:
+            self.current_menu_index = 0
+
+        if self.current_menu_index == 0:
+            self.current_menu = "Editing Boxes"
+        elif self.current_menu_index == 1:
+            self.current_menu = "Spawning Fugitives"
+        elif self.current_menu_index == 2:
+            self.current_menu = "Editing Waypoints"
+        else:
+            print("BoxWorld.increment_menu(): invalid menu index")
 
     def plan_path(self, search, limit):
         '''Conduct a nav-graph search from the current world start node to the
@@ -657,7 +674,24 @@ class BoxWorld(object):
         else:
             print("Error: soldier leader triggered a waypoint that it should not have been able to trigger.")
 
-    # Utility Methods: Weapons
+    # Utility Methods: Fugitives---------------------------------------------------------------------------------------------------------------------
+
+    def spawn_new_fugitive(self, box):
+        if box.kind == "X":
+            print("Can't spawn a new fugitive inside a wall.")
+            return
+
+        for agent in self.agents:
+            if agent.box == box:
+                print("Can't spawn a new fugitive in an occupied box.")
+                return
+
+        self.extra_fugitive_count += 1
+        fugitive = Agent(world=self, box=box.idx, name="Extra Fugitive " + str(self.extra_fugitive_count))
+        self.fugitives.append(fugitive)
+        self.agents.append(fugitive)
+
+    # Utility Methods: Weapons-----------------------------------------------------------------------------------------------------------------------
 
     def change_weapons(self, soldier):
         print("changing weapons for " + soldier.agent_type)
