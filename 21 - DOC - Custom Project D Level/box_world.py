@@ -676,6 +676,11 @@ class BoxWorld(object):
 
     # Utility Methods: Agent Creation and Destruction------------------------------------------------------------------------------------------------
 
+    def destroy_fugitive(self, deceased):
+        self.agents.remove(deceased)
+        self.fugitives.remove(deceased)
+        del deceased
+
     def destroy_soldier(self, deceased):
         self.agents.remove(deceased)
 
