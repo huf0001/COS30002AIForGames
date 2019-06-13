@@ -61,23 +61,25 @@ from vector2d import Vector2D
 from matrix33 import Matrix33
 
 
-box_kind = ['.','m','~','X']
+box_kind = ['.','m','~','X','B']
 
 box_kind_map = {
     'clear': '.',
     'mud':   'm',
     'water': '~',
     'wall':  'X',
+    'base':  'B'
 }
 
 no_edge = ['X'] # box kinds that don't have edges.
 
 edge_cost_matrix = [
-    # '.'   'm'   '~'   'X'
-    [ 1.0,  2.0,  5.0, None], # '.'
-    [ 2.0,  4.0,  9.0, None], # 'm'
-    [ 5.0,  9.0, 10.0, None], # '~'
-    [None, None, None, None], # 'X <- NO edges to walls.
+    # '.'   'm'   '~'   'X'   'B'
+    [ 1.0,  2.0,  5.0, None,  1.0], # '.'
+    [ 2.0,  4.0,  9.0, None,  2.0], # 'm'
+    [ 5.0,  9.0, 10.0, None,  5.0], # '~'
+    [None, None, None, None, None], # 'X <- NO edges to walls.
+    [ 1.0,  2.0,  5.0, None,  1.0], # 'B'
 ]
 
 min_edge_cost = 1.0 # must be min value for heuristic cost to work
@@ -93,6 +95,7 @@ box_kind_color = {
     'm': (0.6, 0.6, 0.5, 1.0), # mud,   Brown-ish
     '~': (0.5, 0.5, 1.0, 1.0), # water, Light blue
     'X': (0.2, 0.2, 0.2, 1.0), # walls, Dark grey
+    'B': (0.627, 0.627, 0.627, 1) # bases, Light grey
 }
 
 
@@ -104,6 +107,18 @@ cfg = {
     'BOXUSED_ON': False,
     'TREE_ON': False,
     'PATH_ON': False,
+}
+
+soldier_designation = {
+    1: "A",
+    2: "B",
+    3: "C",
+    4: "D",
+    5: "E",
+    6: "F",
+    7: "G",
+    8: "H",
+    9: "I"
 }
 
 search_modes = list(SEARCHES.keys())
@@ -238,6 +253,7 @@ class BoxWorld(object):
     def __init__(self, nx, ny, cx, cy):
         self.waypoints = []
         self.walls = []
+        self.bases = []
         self.soldiers = []
         self.fugitives = []
         self.agents = []
@@ -315,6 +331,15 @@ class BoxWorld(object):
         x2, y2 = self.boxes[idx2].pos
         return max(abs(x1-x2),abs(y1-y2)) * min_edge_cost
 
+    def find_bases(self, boxes):
+        bases = []
+
+        for box in boxes:
+            if box.kind == "B":
+                bases.append(box)
+
+        return bases
+
     def find_walls(self, boxes):
         walls = []
 
@@ -325,21 +350,50 @@ class BoxWorld(object):
         return walls    
 
     def set_agents(self):
-        self.soldiers.append(Agent(world=self, agent_type="soldier", box=62, name="Soldier A"))
-        self.soldiers.append(Agent(world=self, agent_type="soldier", box=60, name="Soldier B"))
-        self.soldiers.append(Agent(world=self, agent_type="soldier", box=2, name="Soldier C"))
-        self.soldiers.append(Agent(world=self, agent_type="soldier", box=0, name="Soldier D"))
+        self.set_soldiers()
+        self.set_fugitives()
 
+    def set_fugitives(self):
         self.fugitives.append(Agent(world=self, name="Fugitive A", respawnable=True))
         self.fugitives.append(Agent(world=self, name="Fugitive B", respawnable=True))
         self.fugitives.append(Agent(world=self, name="Fugitive C", respawnable=True))
         self.fugitives.append(Agent(world=self, name="Fugitive D", respawnable=True))
+        
+        for fugitive in self.fugitives:
+            self.agents.append(fugitive)
+
+    def set_soldiers(self):
+        available = []
+
+        i = 1
+
+        while i <= len(soldier_designation):
+            available.append(soldier_designation[i])
+            i += 1
+
+        if len(self.soldiers) > 0:
+            for soldier in self.soldiers:
+                name_array = soldier.name.split()
+
+                if name_array[len(name_array) - 1] in available:
+                    available.remove(name_array[len(name_array) - 1])
+
+        print(available)
+        occupied = []
+
+        for soldier in self.soldiers:
+            occupied.append(soldier.box)
+
+        i = 0
+
+        for base in self.bases:
+            if base not in occupied and len(self.soldiers) < len(self.bases):
+                self.soldiers.append(Agent(world=self, agent_type="soldier", box=base.idx, name="Soldier " + available[i]))
+                i += 1
+
 
         for soldier in self.soldiers:
             self.agents.append(soldier)
-
-        for fugitive in self.fugitives:
-            self.agents.append(fugitive)
 
         self.soldiers[0].target = self.waypoints[0].nodes[0]
         self.soldiers[0].plan_path(search_modes[self.window.search_mode], self.window.limit)
@@ -430,6 +484,9 @@ class BoxWorld(object):
 
     def update(self, delta):
         if not self.paused:
+            if len(self.soldiers) == 0:
+                self.respawn_all_soldiers()
+
             for agent in self.agents:
                 agent.update(delta)
 
@@ -516,7 +573,7 @@ class BoxWorld(object):
         if self.current_menu_index == 0:
             self.current_menu = "Editing Boxes"
         elif self.current_menu_index == 1:
-            self.current_menu = "Spawning Fugitives"
+            self.current_menu = "Managing Agents"
         elif self.current_menu_index == 2:
             self.current_menu = "Editing Waypoints"
         else:
@@ -676,32 +733,65 @@ class BoxWorld(object):
 
     # Utility Methods: Agent Creation and Destruction------------------------------------------------------------------------------------------------
 
+    def destroy_agent(self, deceased):
+        if deceased.agent_type == "soldier":
+            self.destroy_soldier(deceased)
+        elif deceased.agent_type == "fugitive":
+            self.destroy_fugitive(deceased)
+        else:
+            print("Invalid agent type to destroy.")
+
     def destroy_fugitive(self, deceased):
+        print(deceased.name + " destroyed")
         self.agents.remove(deceased)
-        self.fugitives.remove(deceased)
+
+        if deceased in self.fugitives:
+            self.fugitives.remove(deceased)
+
         del deceased
 
     def destroy_soldier(self, deceased):
+        print(deceased.name + " destroyed")
         self.agents.remove(deceased)
 
-        for soldier in self.soldiers:
-            if soldier.target_ally == deceased:
-                soldier.target_ally = None
-                soldier.movement_mode = "Patrol" 
-
-        self.soldiers.remove(deceased)
+        if deceased in self.soldiers:
+            self.soldiers.remove(deceased)
         del deceased
 
-    def spawn_new_fugitive(self, box):
+    def respawn_all_soldiers(self):
+        # reset waypoints
+        self.current_waypoint = 0
+        self.last_waypoint = len(self.waypoints) - 1
+
+        i = 0
+
+        while i > 0 and len(self.waypoints[self.last_waypoint].nodes) == 0:
+            self.last_waypoint -= 1
+
+        if self.last_waypoint == 0:
+            print("You need more than one waypoint for soldiers to be able to patrol")
+            return
+
+        self.set_soldiers()
+
+    def manage_agent_in_box(self, box):
+        destroyed = False
+
+        # destroy agents in box
+        for agent in self.agents:
+            if agent.box == box:
+                self.destroy_agent(agent)
+                destroyed = True
+
+        if destroyed:
+            return
+
+        # check if box is a wall
         if box.kind == "X":
             print("Can't spawn a new fugitive inside a wall.")
             return
 
-        for agent in self.agents:
-            if agent.box == box:
-                print("Can't spawn a new fugitive in an occupied box.")
-                return
-
+        # spawn new fugitive in box
         self.extra_fugitive_count += 1
         fugitive = Agent(world=self, box=box.idx, name="Fugitive Token " + str(self.extra_fugitive_count))
         self.fugitives.append(fugitive)

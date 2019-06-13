@@ -17,7 +17,7 @@ from pyglet.window import key
 from pyglet.gl import *
 from pyglet.text import Label
 
-from box_world import BoxWorld, search_modes, cfg
+from box_world import BoxWorld, search_modes, cfg, soldier_designation
 
 class BoxWorldWindow(pyglet.window.Window):
 
@@ -26,7 +26,8 @@ class BoxWorldWindow(pyglet.window.Window):
         key._1: 'clear',
         key._2: 'mud',
         key._3: 'water',
-        key._4: 'wall'
+        key._4: 'wall',
+        key._5: 'base'
     }
     mouse_mode = 'wall'
 
@@ -48,8 +49,8 @@ class BoxWorldWindow(pyglet.window.Window):
 
     def __init__(self, filename, **kwargs):
         kwargs.update({
-            'width': 900,
-            'height': 900,
+            'width': 700,
+            'height': 700,
             'vsync':True,
             'resizable':True,
         })
@@ -91,6 +92,7 @@ class BoxWorldWindow(pyglet.window.Window):
         self.limit = 0 # unlimited.
 
         self.world.walls = self.world.find_walls(self.world.boxes)
+        self.world.bases = self.world.find_bases(self.world.boxes)
         self.world.set_waypoints()
         self.world.set_agents()
 
@@ -135,14 +137,26 @@ class BoxWorldWindow(pyglet.window.Window):
                             if start_kind == "X":
                                 if box in self.world.walls:
                                     self.world.walls.remove(box)
-                            elif box.kind == "X":
-                                self.world.walls.append(box)
+                            elif start_kind == "B":
+                                if box in self.world.bases:
+                                    if len(self.world.bases) > 0:
+                                        self.world.bases.remove(box)
+                                    else:
+                                        print("Soldiers need to have at least one base.")
 
-                        self.world.reset_navgraph()
-                        self.plan_path()
-                        self._update_label('status','graph changed')
-                    elif self.world.current_menu == "Spawning Fugitives":
-                        self.world.spawn_new_fugitive(box)
+                            if box.kind == "X":
+                                self.world.walls.append(box)
+                            elif box.kind == "B":
+                                if len(self.world.bases) >= len(soldier_designation):
+                                    print("The maximum no. of soldier bases has already been reached.")
+                                else:
+                                    self.world.bases.append(box)
+
+                            self.world.reset_navgraph()
+                            self.plan_path()
+                            self._update_label('status','graph changed')
+                    elif self.world.current_menu == "Managing Agents":
+                        self.world.manage_agent_in_box(box)
                     elif self.world.current_menu == "Editing Waypoints":
                         self.world.edit_waypoint_node(box)
                         self.world.reset_navgraph()

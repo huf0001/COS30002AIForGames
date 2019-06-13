@@ -10,8 +10,6 @@ from vector2d import Point2D
 from graphics import egi, KEY
 from math import sin, cos, radians, sqrt
 from random import random, randrange, uniform
-#from path import Path
-#from hiding_spot import HidingSpot
 from projectile import Projectile
 from datetime import datetime, time, timedelta
 from searches import SEARCHES
@@ -148,13 +146,17 @@ class Agent(object):
         if self.health <= 0:
             print(self.name + ": x_x")
             self.world.destroy_soldier(self)
+            return
 
         self.awareness_pos = Vector2D(self.awareness_radius * 0.625, 0)
         self.awareness_pos = self.world.transform_point(self.awareness_pos, self.pos, self.heading, self.side)
         
         # select movement mode
         if self == self.world.soldiers[len(self.world.soldiers) - 1] and self.squad_overwhelmed():
-            print(self.name + ": HELP!")
+            if self.movement_mode is not "Getting Reinforcements":
+                self.movement_mode = "Getting Reinforcements"
+                self.max_speed = self.max_speed_standard * 1.5
+                self.get_new_path()
         elif self.see_target():
             self.movement_mode = "Attack"
             self.target_ally = None
@@ -183,7 +185,7 @@ class Agent(object):
         elif self.movement_mode == "Attack" or self.movement_mode == "Assist":
             self.movement_mode = "Scout"
             self.get_new_path()
-        elif self.movement_mode is not "Scout" and self.movement_mode is not "Stationary":
+        elif self.movement_mode is not "Scout" and self.movement_mode is not "Stationary" and self.movement_mode is not "Getting Reinforcements":
             self.movement_mode = "Patrol"
 
         if self.choose_weapon():
@@ -203,7 +205,7 @@ class Agent(object):
                     self.combat_mode = 'Ready'
 
             # aim and shoot
-            if self.movement_mode == 'Attack' and self.combat_mode == 'Aiming':
+            if (self.movement_mode == 'Attack' or self.movement_mode == "Getting Reinforcements") and self.combat_mode == 'Aiming':
                 if len(self.weapons[0].projectile_pool) == 0:
                     self.combat_mode = 'No Projectiles Pooled'
                 elif self.target_enemy is not None:
@@ -228,6 +230,11 @@ class Agent(object):
             if (self is not self.world.soldiers[0] and self.target is not self.world.soldiers[0].target) or (self == self.world.soldiers[0] and self.target not in self.world.waypoints[self.world.current_waypoint].nodes):
                 self.get_new_path()
             
+            self.follow_graph_path(delta)
+        elif self.movement_mode == "Getting Reinforcements":
+            if self.target is not self.world.bases[0]:
+                self.get_new_path()
+
             self.follow_graph_path(delta)
 
         self.update_heading()
@@ -399,7 +406,7 @@ class Agent(object):
                 self.fear = max(0, self.fear - 5)
 
         if self.fear >= 50:
-            if self.movement_mode is not "Panicking":
+            if self.movement_mode is not "Panicking" and self.fear > randrange(0, 100):
                 self.movement_mode = "Panicking"
                 self.get_new_path()
                 # print("Now fleeing")
@@ -412,7 +419,7 @@ class Agent(object):
         if self.movement_mode == "Getting Reinforcements":
             return True
 
-        if len(self.world.soldiers) >= 4:
+        if len(self.world.soldiers) >= len(self.world.bases):
             return False
 
         if len(self.world.soldiers) == 1:
@@ -752,6 +759,11 @@ class Agent(object):
 
                     if self == self.world.soldiers[0]:
                         self.finish_scouting()
+                elif self.movement_mode == "Getting Reinforcements":
+                    self.world.set_soldiers()
+                    self.max_speed = self.max_speed_standard
+                    self.movement_mode = "Patrol"
+                    self.get_new_path()
                 else:
                     self.get_new_path()
         except TypeError:
@@ -1176,6 +1188,9 @@ class Agent(object):
         if self.agent_type == "soldier":
             if self.movement_mode == "Stationary":
                 return
+            elif self.movement_mode == "Getting Reinforcements":
+                print(self.name + " getting reinforcements path")
+                self.target = self.world.bases[0]
             elif self.movement_mode == "Attack":
                 if self.target_enemy is not None:
                     print(self.name + " getting attacking path")
@@ -1215,9 +1230,18 @@ class Agent(object):
                     self.movement_mode = "Stationary"
             elif self.movement_mode == "Panicking":
                 print(self.name + " getting fleeing path")
+
+                if len(self.world.soldiers) == 0:
+                    self.movement_mode = "Stationary"
+                    return
+
                 target = self.world.boxes[randrange(0, len(self.world.boxes))]
 
                 while not self.suitable_fleeing_location(target):
+                    if len(self.world.soldiers) == 0:
+                        self.movement_mode = "Stationary"
+                        return
+
                     target = self.world.boxes[randrange(0, len(self.world.boxes))]
                    
                 self.target = target
@@ -1401,18 +1425,22 @@ class Agent(object):
     #     return self.vel.length()
 
     def suitable_fleeing_location(self, target):
-        if target.kind == "X":
-            return False
+        try:
 
-        for agent in self.world.agents:
-            if agent.agent_type == "soldier":
-                if (target.get_vc("agent.suitable_fleeing_location()") - agent.awareness_pos).length() < agent.awareness_radius * 3:
-                    return False
-            else:
-                if target == agent.box:
-                    return False
+            if target.kind == "X":
+                return False
 
-        return True
+            for agent in self.world.agents:
+                if agent.agent_type == "soldier":
+                    if (target.get_vc("agent.suitable_fleeing_location()") - agent.awareness_pos).length() < agent.awareness_radius * 3:
+                        return False
+                else:
+                    if target == agent.box:
+                        return False
+
+            return True
+        except:
+            print("Error in agent.suitable_fleeing_location()")
 
     def suitable_scouting_location(self, target):
         if target.kind == "X":
