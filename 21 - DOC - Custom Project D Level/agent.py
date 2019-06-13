@@ -41,7 +41,7 @@ class Agent(object):
         'fast': 0.3
     }
 
-    def __init__(self, world=None, scale=30.0, agent_type="fugitive", movement_mode=None, combat_mode=None, weapons=[], radius=6.0, box=None, path=None, name="Agent"):
+    def __init__(self, world=None, scale=30.0, agent_type="fugitive", movement_mode=None, combat_mode=None, weapons=[], radius=6.0, box=None, path=None, name="Agent", respawnable="False"):
         # keep a reference to the world object
         self.world = world
         self.name = name
@@ -53,9 +53,10 @@ class Agent(object):
 
         self.health = 1000
         self.start_health = 1000
+        self.respawnable = respawnable
 
-        if self.agent_type == 'soldier':
-            self.health = self.health ** 3
+        # if self.agent_type == 'soldier':
+        #     self.health = self.health ** 3
 
         # scaling variables
         self.scale_scalar = scale
@@ -173,12 +174,19 @@ class Agent(object):
             self.update_fugitive(delta)
 
     def update_soldier(self, delta):
+        # check if died
+        if self.health <= 0:
+            print(self.name + ": x_x")
+            self.world.destroy_soldier(self)
+
         self.awareness_pos = Vector2D(self.awareness_radius * 0.625, 0)
         self.awareness_pos = self.world.transform_point(self.awareness_pos, self.pos, self.heading, self.side)
         self.look(self.world.agents)
 
         # select movement mode
-        if self.see_target:
+        if self == self.world.soldiers[len(self.world.soldiers) - 1] and self.squad_overwhelmed():
+            print(self.name + ": HELP!")
+        elif self.see_target:
             self.movement_mode = "Attack"
             self.target_ally = None
 
@@ -258,7 +266,7 @@ class Agent(object):
 
     def update_fugitive(self, delta):
         # check if died
-        if self.health <= 0:
+        if self.health <= 0 and self.respawnable:
             self.position_in_random_box()
             self.path = None
             self.health = self.start_health
@@ -302,14 +310,12 @@ class Agent(object):
 
                         if (datetime.now() - self.last_shot).total_seconds() <= self.weapons[0].cooldown:
                             self.combat_mode = 'Weapon is Loading Next Round'
-                        elif self.movement_mode == 'Attack':
+                        elif self.movement_mode == 'Attack' or "Flee":
                             self.combat_mode = 'Aiming'
                         elif self.movement_mode == "Stationary":
                             self.combat_mode = 'Ready'
-                        elif self.movement_mode == "Flee":
-                            self.combat_mode == "Panicking"
 
-                    if self.movement_mode == 'Attack' and self.combat_mode == 'Aiming':
+                    if (self.movement_mode == 'Attack' or self.movement_mode == "Flee") and self.combat_mode == 'Aiming':
                         if len(self.weapons[0].projectile_pool) == 0:
                             self.combat_mode = 'No Projectiles Pooled'
                         elif self.target_enemy is not None:
@@ -434,6 +440,27 @@ class Agent(object):
 
         return False
 
+    def squad_overwhelmed(self):
+        if self.movement_mode == "Getting Reinforcements":
+            return True
+
+        if len(self.world.soldiers) >= 4:
+            return False
+
+        if len(self.world.soldiers) == 1:
+            return True
+
+        attacking_enemies = 0
+
+        for agent in self.world.agents:
+            if agent.agent_type is not self.agent_type and agent.target_enemy in self.world.soldiers:
+                attacking_enemies += 1
+
+        if attacking_enemies >= len(self.world.soldiers):
+            return True
+
+        return False
+
     def render(self, color=None):
         egi.set_stroke(2)
 
@@ -503,6 +530,19 @@ class Agent(object):
                 egi.circle(self.awareness_pos, self.awareness_radius)
         else:
             egi.circle(self.pos, self.radius)
+
+        hp = self.health / self.start_health
+
+        if hp > 0.75:
+            egi.green_pen()
+        elif hp > 0.25:
+            egi.orange_pen()
+        else:
+            egi.red_pen()
+
+        bar_left = self.pos + Vector2D(-self.radius * hp, self.radius * (1.75 * self.world.scale_scalar))
+        bar_right = self.pos + Vector2D(self.radius * hp, self.radius * (1.75 * self.world.scale_scalar))
+        egi.line_by_pos(bar_left, bar_right)
 
         # render obstacle avoidance
         # if self.show_avoidance:
@@ -1042,6 +1082,8 @@ class Agent(object):
         return target.pos + (target.heading * dist)
 
     def shoot(self, target_pos):
+        if self.agent_type == "fugitive":
+            print(self.name + " shooting")
         original_target_pos = target_pos.copy()
 
         if self.weapons[0].name == 'Shotgun':

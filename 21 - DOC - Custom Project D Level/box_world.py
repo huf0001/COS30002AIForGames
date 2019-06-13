@@ -330,10 +330,10 @@ class BoxWorld(object):
         self.soldiers.append(Agent(world=self, agent_type="soldier", box=2, name="Soldier C"))
         self.soldiers.append(Agent(world=self, agent_type="soldier", box=0, name="Soldier D"))
 
-        self.fugitives.append(Agent(world=self, name="Fugitive A"))
-        self.fugitives.append(Agent(world=self, name="Fugitive B"))
-        self.fugitives.append(Agent(world=self, name="Fugitive C"))
-        self.fugitives.append(Agent(world=self, name="Fugitive D"))
+        self.fugitives.append(Agent(world=self, name="Fugitive A", respawnable=True))
+        self.fugitives.append(Agent(world=self, name="Fugitive B", respawnable=True))
+        self.fugitives.append(Agent(world=self, name="Fugitive C", respawnable=True))
+        self.fugitives.append(Agent(world=self, name="Fugitive D", respawnable=True))
 
         for soldier in self.soldiers:
             self.agents.append(soldier)
@@ -674,7 +674,18 @@ class BoxWorld(object):
         else:
             print("Error: soldier leader triggered a waypoint that it should not have been able to trigger.")
 
-    # Utility Methods: Fugitives---------------------------------------------------------------------------------------------------------------------
+    # Utility Methods: Agent Creation and Destruction------------------------------------------------------------------------------------------------
+
+    def destroy_soldier(self, deceased):
+        self.agents.remove(deceased)
+
+        for soldier in self.soldiers:
+            if soldier.target_ally == deceased:
+                soldier.target_ally = None
+                soldier.movement_mode = "Patrol" 
+
+        self.soldiers.remove(deceased)
+        del deceased
 
     def spawn_new_fugitive(self, box):
         if box.kind == "X":
@@ -687,7 +698,7 @@ class BoxWorld(object):
                 return
 
         self.extra_fugitive_count += 1
-        fugitive = Agent(world=self, box=box.idx, name="Extra Fugitive " + str(self.extra_fugitive_count))
+        fugitive = Agent(world=self, box=box.idx, name="Fugitive Token " + str(self.extra_fugitive_count))
         self.fugitives.append(fugitive)
         self.agents.append(fugitive)
 

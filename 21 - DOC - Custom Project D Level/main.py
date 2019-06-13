@@ -76,11 +76,11 @@ class BoxWorldWindow(pyglet.window.Window):
         self.fps_display = clock.ClockDisplay() # None 
         clBlack = (0,0,0, 255)
         self.labels = {
-            'mouse':  Label('', x=5, y=self.height-20, color=clBlack),
-            'search': Label('', x=105, y=self.height-20, color=clBlack),
-            'status': Label('', x=225, y=self.height-20, color=clBlack),
-            'menu': Label('', x=400, y=self.height-20, color=clBlack),
-            'editing': Label('', x=650, y=self.height-20, color=clBlack)
+            'mouse':    Label('', x=5, y=self.height-20, color=clBlack),
+            'search':   Label('', x=105, y=self.height-20, color=clBlack),
+            'status':   Label('', x=225, y=self.height-20, color=clBlack),
+            'menu':     Label('', x=400, y=self.height-20, color=clBlack),
+            'editing':  Label('', x=650, y=self.height-20, color=clBlack)
         }
         self._update_label()
 
