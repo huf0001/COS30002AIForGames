@@ -61,7 +61,6 @@ class Projectile(object):
                 print("projectile passed a none value for delta")
 
             while i < 4:
-                # print("projectile i is " + str(i))
                 self.pos += self.vel * delta * 0.2
 
                 if self.pos.x < 0 or self.pos.x > self.world.cx or self.pos.y < 0 or self.pos.y > self.world.cy:
@@ -92,8 +91,6 @@ class Projectile(object):
                 i += 1
         else:
             self.radius += 0.02 * self.scale_scalar * self.world.scale_scalar * self.explosion_multiplier
-            
-            # print("radius: " + str(self.radius))
             collided = self.collided()
 
             if len(collided) > 0:
@@ -127,7 +124,6 @@ class Projectile(object):
 
         if len(self.world.agents) > 0:
             for agent in self.world.agents:
-                # if (self.left_barrel or agent is not self.owner_on_firing) and self.distance(agent.pos) < self.radius + agent.radius:
                 if agent is not None and self.owner_on_firing is not None and agent.agent_type is not self.owner_on_firing.agent_type and self.distance(agent.pos) < self.radius + agent.radius:
                     collided.append(agent)
 

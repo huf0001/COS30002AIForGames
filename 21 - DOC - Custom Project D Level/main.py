@@ -93,7 +93,7 @@ class BoxWorldWindow(pyglet.window.Window):
         self.world.walls = self.world.find_walls(self.world.boxes)
         self.world.bases = self.world.find_bases(self.world.boxes)
         self.world.set_waypoints()
-        self.world.set_agents()
+        self.world.set_soldiers()
 
     def _update_label(self, key=None, text='---'):
         if key == 'mouse' or key is None:
@@ -181,14 +181,10 @@ class BoxWorldWindow(pyglet.window.Window):
                 cfg['CENTER_ON'] = not cfg['CENTER_ON']
             elif symbol == key.B:
                 cfg['BOXLINES_ON'] = not cfg['BOXLINES_ON']
-            elif symbol == key.U:
-                cfg['BOXUSED_ON'] = not cfg['BOXUSED_ON']
             elif symbol == key.O:
                 cfg['PATH_ON'] = not cfg['PATH_ON']
             elif symbol == key.P:
                 self.world.paused = not self.world.paused
-            elif symbol == key.T:
-                cfg['TREE_ON'] = not cfg['TREE_ON']
             elif symbol == key.F:
                 self.world.show_fugitive_awareness_range = not self.world.show_fugitive_awareness_range
             elif symbol == key.S:
@@ -211,7 +207,6 @@ class BoxWorldWindow(pyglet.window.Window):
             self.fps_display.draw()
         for key, label in list(self.labels.items()):
             label.draw()
-
 
 
 #==============================================================================

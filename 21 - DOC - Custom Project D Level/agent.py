@@ -17,27 +17,8 @@ from pyglet import clock
 
 search_modes = list(SEARCHES.keys())
 
-AGENT_MODES = {
-    KEY._1: 'seek',
-    KEY._2: 'arrive_slow',
-    KEY._3: 'arrive_normal',
-    KEY._4: 'arrive_fast',
-    KEY._5: 'flee',
-    KEY._6: 'pursuit',
-    KEY._7: 'follow_path',
-    KEY._8: 'wander',
-    KEY._9: 'hide'
-}
-
 class Agent(object):
-    # Agent Setup ---------------------------------------------------------------
-
-    # NOTE: Class Object (not *instance*) variables!
-    DECELERATION_SPEEDS = {
-        'slow': 0.9,
-        'normal': 0.6,
-        'fast': 0.3
-    }
+    # Agent Setup ---------------------------------------------------------------------------------
 
     def __init__(self, world=None, scale=30.0, agent_type="fugitive", movement_mode=None, combat_mode=None, weapons=[], radius=6.0, box=None, path=None, name="Agent", respawnable=False):
         self.world = world
@@ -93,7 +74,7 @@ class Agent(object):
 
         self.world.change_weapons(self)
 
-    # The central logic of the Agent class ------------------------------------------------
+    # The central logic of the Agent class --------------------------------------------------------
 
     def update(self, delta):
         # check if been stuck on the same node too long while not following an enemy
@@ -113,7 +94,6 @@ class Agent(object):
             self.update_fugitive(delta)
 
     def update_soldier(self, delta):
-        # check if died
         if self.health <= 0:
             print(self.name + ": x_x")
             self.world.destroy_soldier(self)
@@ -124,7 +104,6 @@ class Agent(object):
         self.move_soldier(delta)
 
     def select_soldier_movement_mode(self):
-        # select movement mode
         if self == self.world.soldiers[len(self.world.soldiers) - 1] and self.squad_overwhelmed():
             if self.movement_mode is not "Getting Reinforcements":
                 self.movement_mode = "Getting Reinforcements"
@@ -221,7 +200,6 @@ class Agent(object):
         self.awareness_pos = self.world.transform_point(self.awareness_pos, self.pos, self.heading, self.side)
 
     def update_fugitive(self, delta):
-        # check if died
         if self.health <= 0:
             if self.respawnable:
                 self.position_in_random_box()
@@ -267,14 +245,12 @@ class Agent(object):
                 if closest is not None:
                     self.fear += 1 * (self.awareness_radius / max(closest_dist, 0.001))
             elif self.movement_mode == "Stationary" and self.fear > 0:
-                # print(self.name + " calming down")
                 self.fear = max(0, self.fear - 5)
 
         if self.fear >= 50:
             if self.movement_mode is not "Panicking" and self.fear > randrange(0, 100):
                 self.movement_mode = "Panicking"
                 self.get_new_path()
-                # print("Now fleeing")
 
             return True
 
@@ -291,12 +267,9 @@ class Agent(object):
                     if agent.agent_type is not self.agent_type and (self.target_enemy == None or self.distance(self.target_enemy.pos) > self.distance(agent.pos)) and self.target_and_path_in_range(agent):
                         self.target_enemy = agent
 
-                # print(self.name + " attacking " + self.target_enemy.name)
-
             if self.target_enemy is not None and self.target_enemy.box is not self.target:
                 self.get_new_path()
         elif self.movement_mode is not "Stationary":
-            # print("Fugitive lost soldier. Sitting still.")
             self.sit_still()
 
     def move_fugitive(self, delta):
@@ -397,7 +370,7 @@ class Agent(object):
         bar_right = self.pos + Vector2D(self.radius * hp, self.radius * (1.75 * self.world.scale_scalar))
         egi.line_by_pos(bar_left, bar_right)
 
-    # The motion behaviours of Agent ------------------------------------------------------------------
+    # The motion behaviours of Agent --------------------------------------------------------------
 
     def follow_graph_path(self, delta):
         try:
@@ -572,46 +545,31 @@ class Agent(object):
             return False
 
         weapon_0 = self.weapons[0]
-        # weapon_1 = self.weapons[1]
-
-        weapon_0_ammo = weapon_0.rounds_left_in_magazine + weapon_0.magazine_size * weapon_0.magazines_left 
-        # weapon_1_ammo = weapon_1.rounds_left_in_magazine + weapon_1.magazine_size * weapon_1.magazines_left
-
+        weapon_0_ammo = weapon_0.rounds_left_in_magazine + weapon_0.magazine_size * weapon_0.magazines_left
         weapon_0_avg_dmg = weapon_0.damage * weapon_0.damage_factor
-        # weapon_1_avg_dmg = weapon_1.damage * weapon_1.damage_factor
 
         if self.target_enemy is not None:
             target_health = self.target_enemy.health
 
         # check if out of ammo
-        if weapon_0_ammo <= 0: # and weapon_1_ammo <= 0:
+        if weapon_0_ammo <= 0:
             print("No ammo. Changing weapons.")
             self.movement_mode = 'Exchange Weapons'
             return False
         # check if attacking or patrolling and have insufficient ammo to kill the target
-        elif self.target_enemy is not None and (self.movement_mode == 'Attack' or self.movement_mode == 'Patrol') and weapon_0_avg_dmg * weapon_0_ammo < target_health: # + weapon_1_avg_dmg * weapon_1_ammo < target_health:
+        elif self.target_enemy is not None and weapon_0_avg_dmg * weapon_0_ammo < target_health:
             print("Insufficient ammo to kill target. Changing weapons. Rounds / Magazine Size / Magazines: " + str(weapon_0.rounds_left_in_magazine) + "/" + str(weapon_0.magazine_size) + "/" + str(weapon_0.magazines_left) + ". Avg Total Damage / Enemy Health: " + str(weapon_0_avg_dmg * weapon_0_ammo) + "/" + str(target_health) + ".")
             self.movement_mode = 'Exchange Weapons'
             return False
         # check if patrolling and would theoretically have insufficient ammo to kill the target
-        elif self.target_enemy == None and self.movement_mode == 'Patrol' and weapon_0_avg_dmg * weapon_0_ammo < self.start_health: # + weapon_1_avg_dmg * weapon_1_ammo < self.start_health:
+        elif self.target_enemy == None and weapon_0_avg_dmg * weapon_0_ammo < self.start_health:
             print("Theoretically insufficient ammo to kill target. Changing weapons.")
             self.movement_mode = 'Exchange Weapons'
             return False            
 
-        # # check if only current weapon is out of ammo
-        # if weapon_0_ammo <= 0 and weapon_1_ammo > 0:
-        #     self.next_weapon()
-        # # check if both weapons have ammo, if both weapons' probable damage dealt (accounting for explosive splash damage and multiple shotgun pellets vs fixed damage rifle and hand gun bullets)
-        # # would be sufficient to kill the target, and the next weapon deals less damage
-        # elif self.target_enemy is not None and weapon_0_ammo > 0 < weapon_1_ammo and weapon_0_avg_dmg > weapon_1_avg_dmg > target_health:
-        #     self.next_weapon()
-
         return True 
 
     def aim_shot(self, target):
-        # print("stationary: " + str(target.pos))
-
         if target.movement_mode == 'Stationary':
             target_pos = target.pos.copy()
         else:
@@ -643,7 +601,6 @@ class Agent(object):
 
                     # is it's predicted pos close enough?
                     if dist < self.target_enemy.radius * 0.1:
-                        # print('dist between predicted positions less than 0.1 times the targets radius')
                         loop = False
 
                 else:
@@ -734,7 +691,6 @@ class Agent(object):
             self.weapons[0].projectile_pool.remove(p)
             p.vel = p_vel
             p.pos = self.pos.copy()
-            # p.p_type = self.weapon
             p.damage = self.weapons[0].damage
 
             # where's the grenade gonna land?
@@ -848,7 +804,6 @@ class Agent(object):
                 self.sit_still()
                 return
             elif self.movement_mode == "Stationary":
-                # print("fugitive is stationary")
                 return
         else:
             print("Error: Invalid agent type submitted to agent.get_new_path(). " + self.name + " defaulting to wandering.")
@@ -904,7 +859,6 @@ class Agent(object):
 
     def suitable_fleeing_location(self, target):
         try:
-
             if target.kind == "X":
                 return False
 

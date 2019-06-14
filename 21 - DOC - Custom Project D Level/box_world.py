@@ -292,10 +292,10 @@ class BoxWorld(object):
         self.show_soldier_awareness_range = False
         self.show_fugitive_awareness_range = False
         self.show_weapon_range = False
-        
+
         self.extra_fugitive_count = 0
 
-        self.current_menu = "Editing Boxes"
+        self.current_menu = "Managing Agents"
         self.current_menu_index = 0
 
         i = 0
@@ -351,19 +351,6 @@ class BoxWorld(object):
 
         return walls    
 
-    def set_agents(self):
-        self.set_soldiers()
-        self.set_fugitives()
-
-    def set_fugitives(self):
-        self.fugitives.append(Agent(world=self, name="Fugitive A", respawnable=True))
-        self.fugitives.append(Agent(world=self, name="Fugitive B", respawnable=True))
-        self.fugitives.append(Agent(world=self, name="Fugitive C", respawnable=True))
-        self.fugitives.append(Agent(world=self, name="Fugitive D", respawnable=True))
-        
-        for fugitive in self.fugitives:
-            self.agents.append(fugitive)
-
     def set_soldiers(self):
         available = []
 
@@ -415,7 +402,6 @@ class BoxWorld(object):
             i += 1  
                   
     def set_weapons(self):
-        # add weapons
         self.weapons.append(Weapon(
             world = self, 
             name = 'Rifle', 
@@ -429,19 +415,6 @@ class BoxWorld(object):
             magazines = 1000000000,#6, 
             accuracy_modifier = 0,
             stamina_drain=4))
-        # self.weapons.append(Weapon(
-        #     world = self, 
-        #     name = 'Rocket', 
-        #     cooldown = 1.5,                 # max rpm of 0.6 sec / round 
-        #     effective_range = 160,      # estimated effective range 160 m
-        #     speed = 100,
-        #     damage = 6,                     # explosive; does damage over time
-        #     damage_factor = 20,
-        #     reload_time = 3, 
-        #     magazine_size = 2, 
-        #     magazines = 1000000000,#4, 
-        #     accuracy_modifier = 0,
-        #     stamina_drain=5)) 
         self.weapons.append(Weapon(
             world = self, 
             name = 'Hand Gun', 
@@ -455,19 +428,6 @@ class BoxWorld(object):
             magazines = 1000000000,#10, 
             accuracy_modifier = 5,
             stamina_drain=2))
-        # self.weapons.append(Weapon(
-        #     world = self, 
-        #     name = 'Hand Grenade', 
-        #     cooldown = 2,                   # estimated max rpm of 2 sec / round 
-        #     effective_range = 75,       # estimated effective range 75 m
-        #     speed = 100,
-        #     damage = 4,                     # explosive; does damage over time
-        #     damage_factor = 20,
-        #     reload_time = 2, 
-        #     magazine_size = 8, 
-        #     magazines = 1000000000,#2, 
-        #     accuracy_modifier = 5,
-        #     stamina_drain=1))
         self.weapons.append(Weapon(
             world = self, 
             name = 'Shotgun', 
@@ -573,9 +533,9 @@ class BoxWorld(object):
             self.current_menu_index = 0
 
         if self.current_menu_index == 0:
-            self.current_menu = "Editing Boxes"
-        elif self.current_menu_index == 1:
             self.current_menu = "Managing Agents"
+        elif self.current_menu_index == 1:
+            self.current_menu = "Editing Boxes"
         elif self.current_menu_index == 2:
             self.current_menu = "Editing Waypoints"
         else:
@@ -774,7 +734,6 @@ class BoxWorld(object):
         del deceased
 
     def respawn_all_soldiers(self):
-        # reset waypoints
         self.current_waypoint = 0
         self.last_waypoint = len(self.waypoints) - 1
 
@@ -837,8 +796,6 @@ class BoxWorld(object):
             print("added weapon " + weapon.name)
     
     def destroy_projectile(self, projectile):
-        # print('Destroying projectile. Projectile pool length: ' + str(len(projectile.weapon.projectile_pool)) + '.')
-
         # remove projectile from world so that it does not render or update
         if projectile in self.projectiles:
             self.projectiles.remove(projectile)
@@ -848,9 +805,7 @@ class BoxWorld(object):
         projectile.target = None
         projectile.explosion_time = None
         projectile.owner_on_firing = None
-
         projectile.weapon.projectile_pool.append(projectile)
-        # print('Destroyed projectile. Projectile pool length: ' + str(len(projectile.weapon.projectile_pool)))
     
     def replenish_weapon(self, weapon):
         weapon.rounds_left_in_magazine = 0
@@ -922,11 +877,6 @@ class BoxWorld(object):
         # Create a new BoxWorld to store all the new boxes in...
         cx, cy = pixels
         world = BoxWorld(nx, ny, cx, cy)
-
-        # Get and set the Start and Target tiles
-        # s_idx, t_idx = [int(bit) for bit in lines.pop(0).split()]
-        # world.set_start(s_idx)
-        # world.set_target(t_idx)
 
         # Get and set the waypoints
         world.current_waypoint, world.last_waypoint = [int(bit) for bit in lines.pop(0).split()]
