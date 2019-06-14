@@ -80,8 +80,7 @@ class BoxWorldWindow(pyglet.window.Window):
             'mouse':    Label('', x=5, y=self.height-20, color=clBlack),
             'search':   Label('', x=105, y=self.height-20, color=clBlack),
             'status':   Label('', x=225, y=self.height-20, color=clBlack),
-            'menu':     Label('', x=400, y=self.height-20, color=clBlack),
-            'editing':  Label('', x=650, y=self.height-20, color=clBlack)
+            'menu':     Label('', x=400, y=self.height-20, color=clBlack)
         }
         self._update_label()
 
@@ -105,8 +104,9 @@ class BoxWorldWindow(pyglet.window.Window):
             self.labels['status'].text = 'Status: '+ text
         if key == 'menu' or key is None:
             self.labels['menu'].text = "Menu: " + self.world.current_menu
-        if key == 'editing' or key is None:
-            self.labels['editing'].text = 'Editing: ' + str(self.world.active_waypoint)
+
+            if self.world.current_menu == "Editing Waypoints":
+                self.labels['menu'].text += " (" + str(self.world.active_waypoint) + ")"
 
     def add_handers(self):
 
@@ -164,32 +164,15 @@ class BoxWorldWindow(pyglet.window.Window):
 
         @self.event
         def on_key_press(symbol, modifiers):
-            # mode change?
             if self.world.current_menu == "Editing Boxes" and symbol in self.mouse_modes:
                 self.mouse_mode = self.mouse_modes[symbol]
                 self._update_label('mouse')
             elif self.world.current_menu == "Editing Waypoints" and symbol in self.waypoint_indexes:
                 self.world.active_waypoint = self.waypoint_indexes[symbol]
-                self._update_label('editing')
-            # Change search mode? (Algorithm)
+                self._update_label('menu')
             elif symbol == key.M:
-                self.search_mode += 1
-                if self.search_mode >= len(search_modes):
-                    self.search_mode = 0
-                self.plan_path()
-                self._update_label('search')
-            elif symbol == key.N:
-                self.search_mode -= 1
-                if self.search_mode < 0:
-                    self.search_mode = len(search_modes)-1
-                self.plan_path()
-                self._update_label('search')
-            # Plan a path using the current search mode?
-            elif symbol == key.SPACE:
                 self.world.increment_menu()
                 self._update_label('menu')
-            elif symbol == key.A:
-                self.world.show_awareness_range = not self.world.show_awareness_range
             elif symbol == key.E:
                 cfg['EDGES_ON'] = not cfg['EDGES_ON']
             elif symbol == key.L:
@@ -206,40 +189,16 @@ class BoxWorldWindow(pyglet.window.Window):
                 self.world.paused = not self.world.paused
             elif symbol == key.T:
                 cfg['TREE_ON'] = not cfg['TREE_ON']
+            elif symbol == key.F:
+                self.world.show_fugitive_awareness_range = not self.world.show_fugitive_awareness_range
+            elif symbol == key.S:
+                self.world.show_soldier_awareness_range = not self.world.show_soldier_awareness_range
             elif symbol == key.W:
                 self.world.show_weapon_range = not self.world.show_weapon_range
-
-            elif symbol == key.UP:
-                self.limit += 1
-                self.plan_path()
-                self._update_label('status', 'limit=%d' % self.limit)
-            elif symbol == key.DOWN:
-                if self.limit-1 > 0:
-                    self.limit -= 1
-                    self.plan_path()
-                    self._update_label('status', 'limit=%d' % self.limit)
-            elif symbol == key._0:
-                self.limit = 0
-                self.plan_path()
-                self._update_label('status', 'limit=%d' % self.limit)
-            elif symbol == key.D:
-                print("changing diagonal")
-                if self.world.diagonal == '_manhattan':
-                    self.world.diagonal = '_hypot'
-                    print("_hypot")
-                elif self.world.diagonal == '_hypot':
-                    self.world.diagonal = '_max'
-                    print("_max")
-                elif self.world.diagonal == '_max':
-                    self.world.diagonal = '_manhattan'
-                    print("_manhattan")
 
     def plan_path(self):
         self.world.plan_path(search_modes[self.search_mode], self.limit)
         self._update_label('status', 'path planned')
-        # print(self.world.path.report(verbose=3))
-        # for agent in self.world.agents:
-        #     print("Agent path: " + agent.path.report(verbose=3))
 
     def on_draw(self):
         self.clear()
@@ -264,7 +223,6 @@ if __name__ == '__main__':
     else:
         filename = "map3.txt"
     window = BoxWorldWindow(filename)
-    #pyglet.app.run()
 
     while not window.has_exit:
         window.dispatch_events()

@@ -280,17 +280,19 @@ class BoxWorld(object):
         self.graph = None
         self.diagonal = '_max'
         self.reset_navgraph()
-        #self.start = None
         self.targets = []
         self.paused = False
         self.window = None
         self.cfg = cfg
+
         self.active_waypoint = 0 # currently being edited
         self.current_waypoint = 0 # the next waypoint in the patrol of the soldier agents
         self.current_waypoint = 9 # the previous waypoint in the patrol of the soldier agents
 
-        self.show_awareness_range = False
+        self.show_soldier_awareness_range = False
+        self.show_fugitive_awareness_range = False
         self.show_weapon_range = False
+        
         self.extra_fugitive_count = 0
 
         self.current_menu = "Editing Boxes"
@@ -663,7 +665,7 @@ class BoxWorld(object):
 
         for agent in self.agents:
             agent.radius = agent.radius_standard * self.scale_scalar
-            agent.avoid_radius = agent.avoid_radius_standard * self.scale_scalar
+            # agent.avoid_radius = agent.avoid_radius_standard * self.scale_scalar
             agent.awareness_radius = agent.awareness_radius_standard * self.scale_scalar
             agent.pos = agent.box._vc
 
@@ -729,7 +731,7 @@ class BoxWorld(object):
 
             print("Regressed Waypoint. Last Waypoint: " + str(self.last_waypoint) + ", Current Waypoint: " + str(self.current_waypoint) + ".")
         else:
-            print("Error: soldier leader triggered a waypoint that it should not have been able to trigger.")
+            print("Error: Invalid waypoint triggered. Last Waypoint: " + str(self.last_waypoint) + ", Current Waypoint: " + str(self.current_waypoint) + ", Triggered Waypoint: " + str(trigger) + ".")
 
     # Utility Methods: Agent Creation and Destruction------------------------------------------------------------------------------------------------
 
@@ -742,20 +744,33 @@ class BoxWorld(object):
             print("Invalid agent type to destroy.")
 
     def destroy_fugitive(self, deceased):
-        print(deceased.name + " destroyed")
-        self.agents.remove(deceased)
-
         if deceased in self.fugitives:
             self.fugitives.remove(deceased)
 
+        self.agents.remove(deceased)
+        print(deceased.name + " destroyed")
         del deceased
 
     def destroy_soldier(self, deceased):
-        print(deceased.name + " destroyed")
-        self.agents.remove(deceased)
+        # set waypoints to suit the new soldier leader
+        if deceased == self.soldiers[0] and len(self.soldiers) > 1:
+            path = deceased.calculate_path(search_modes[self.window.search_mode], self.soldiers[1].box, self.window.limit)
+            last_node = None
 
+            for node in path.path:
+                node = self.boxes[node]
+
+                if node.waypoint is not None and last_node is not None and last_node.waypoint is not node.waypoint:
+                    self.update_waypoint(node.waypoint)
+
+                last_node = node
+
+        # destroy the soldier
         if deceased in self.soldiers:
             self.soldiers.remove(deceased)
+
+        self.agents.remove(deceased)
+        print(deceased.name + " destroyed")    
         del deceased
 
     def respawn_all_soldiers(self):
