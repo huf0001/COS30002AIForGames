@@ -287,7 +287,7 @@ class BoxWorld(object):
 
         self.active_waypoint = 0 # currently being edited
         self.current_waypoint = 0 # the next waypoint in the patrol of the soldier agents
-        self.current_waypoint = 9 # the previous waypoint in the patrol of the soldier agents
+        self.last_waypoint = 9 # the previous waypoint in the patrol of the soldier agents
 
         self.show_soldier_awareness_range = False
         self.show_fugitive_awareness_range = False
